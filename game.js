@@ -29,17 +29,18 @@ let returnStation;
 let money = 0;
 let gameStartTime;
 let level = 0;
+let happiness = 50; // Start at Junior's initial mood
 
 // List of obviously bad TINs that should always be invalid
 const badTINs = ['000000000', '111111111', '999999999', '123456789'];
 
-// Level system (starting with Junior)
+// Level system (mood-based progression)
 const levels = [
-    { name: 'Junior', threshold: 0, speedBonus: 0, carryCapacity: 1, irsSlots: 1, preValidated: false },
-    { name: 'Mid', threshold: 500, speedBonus: 100, carryCapacity: 2, irsSlots: 1, preValidated: false },
-    { name: 'Senior', threshold: 1200, speedBonus: 100, carryCapacity: 2, irsSlots: 2, preValidated: false },
-    { name: 'Architect', threshold: 2500, speedBonus: 100, carryCapacity: 2, irsSlots: 2, preValidated: true },
-    { name: 'CEO', threshold: 5000, speedBonus: 150, carryCapacity: 3, irsSlots: 3, preValidated: true }
+    { name: 'Junior', initMood: 50, speedBonus: 0, carryCapacity: 1, irsSlots: 1, preValidated: false, moodGainRate: 5.0, moodLossRate: 1.0, spawnSpeedMultiplier: 0.95 },
+    { name: 'Mid', initMood: 35, speedBonus: 100, carryCapacity: 2, irsSlots: 1, preValidated: false, moodGainRate: 3.5, moodLossRate: 1.2, spawnSpeedMultiplier: 1.5 },
+    { name: 'Senior', initMood: 25, speedBonus: 100, carryCapacity: 2, irsSlots: 2, preValidated: false, moodGainRate: 2.5, moodLossRate: 1.4, spawnSpeedMultiplier: 1.71 },
+    { name: 'Architect', initMood: 10, speedBonus: 100, carryCapacity: 2, irsSlots: 2, preValidated: true, moodGainRate: 1.0, moodLossRate: 1.6, spawnSpeedMultiplier: 2.0 },
+    { name: 'CEO', initMood: 0, speedBonus: 150, carryCapacity: 3, irsSlots: 3, preValidated: true, moodGainRate: 0.2, moodLossRate: 1.8, spawnSpeedMultiplier: 2.0 }
 ];
 
 // Function to get current level info
@@ -49,15 +50,60 @@ function getCurrentLevel() {
 
 // Function to check for promotion
 function checkPromotion() {
-    if (level < levels.length - 1 && money >= levels[level + 1].threshold) {
+    if (level < levels.length - 1 && happiness >= 100) {
         level++;
         const newLevel = getCurrentLevel();
-        console.log(`PROMOTION! You are now ${newLevel.name}!`);
+        happiness = newLevel.initMood; // Reset to new level's starting mood
+        console.log(`PROMOTION! You are now ${newLevel.name}! Mood reset to ${happiness}.`);
         document.getElementById('level-display').textContent = `Level: ${newLevel.name}`;
+        updateHappiness(0); // Update display without changing value
         return true;
     }
     return false;
 }
+
+// Function to update happiness and display
+function updateHappiness(change) {
+    // Apply level-based mood change rates
+    const currentLevel = getCurrentLevel();
+    let actualChange = change;
+    
+    if (change > 0) {
+        actualChange = change * currentLevel.moodGainRate; // Positive changes get harder at higher levels
+    } else if (change < 0) {
+        actualChange = change * currentLevel.moodLossRate; // Negative changes get worse at higher levels
+    }
+    
+    happiness = Math.max(-100, Math.min(100, happiness + actualChange));
+    
+    // Update display with color coding
+    const display = document.getElementById('happiness-display');
+    display.textContent = `Mood: ${Math.round(happiness)}`;
+    
+    // Color coding based on happiness level
+    if (happiness >= 50) {
+        display.style.color = '#00ff00'; // Green for happy
+    } else if (happiness >= 0) {
+        display.style.color = '#00ffff'; // Cyan for neutral
+    } else if (happiness >= -50) {
+        display.style.color = '#ffff00'; // Yellow for unhappy
+    } else {
+        display.style.color = '#ff0000'; // Red for very unhappy
+    }
+    
+    // Check for game over
+    if (happiness <= -100) {
+        alert('GAME OVER: Your mood has reached rock bottom! You have been fired.');
+        // Could implement proper game over screen here
+    }
+    
+    // Check for promotion
+    checkPromotion();
+    
+    console.log(`Happiness changed by ${actualChange.toFixed(1)} (from ${change}), now at ${happiness.toFixed(1)}`);
+}
+
+// Removed happiness multiplier - mood no longer affects payment
 
 // Function to format time display (MM:SS)
 function formatTime(seconds) {
@@ -75,7 +121,9 @@ function getDifficulty() {
 // Function to get current spawn delay
 function getSpawnDelay() {
     const difficulty = getDifficulty();
-    return Math.max(2000, 5000 - (difficulty * 3000)); // 5s to 2s
+    const baseDelay = Math.max(2000, 5000 - (difficulty * 3000)); // 5s to 2s
+    const levelMultiplier = getCurrentLevel().spawnSpeedMultiplier;
+    return baseDelay / levelMultiplier; // Faster spawn at higher levels
 }
 
 // Function to get current processing time
@@ -575,24 +623,23 @@ function submitBox() {
     
     // Check if player's result matches correct result
     if (playerResult === correctResult) {
-        // Variable payment based on level
+        // Variable payment based on level (no happiness multiplier)
         let payment = 10; // Base payment
         if (level === 0) payment = 100; // Junior gets $100
         else if (level === 1) payment = 500; // Mid gets $500  
         else if (level >= 2) payment = 1000; // Senior+ gets $1000
         
         money += payment;
-        console.log(`CORRECT! Box #${processedBox.id} TIN: ${processedBox.tin} - Player: ${playerResult}, Correct: ${correctResult}. Paid $${payment}`);
+        updateHappiness(2); // Increase happiness for correct results
+        console.log(`CORRECT! Box #${processedBox.id} TIN: ${processedBox.tin} - Player: ${playerResult}, Correct: ${correctResult}. Paid $${payment}. Mood +2.`);
     } else {
-        // Wrong - no payment
-        console.log(`WRONG! Box #${processedBox.id} TIN: ${processedBox.tin} - Player: ${playerResult}, Correct: ${correctResult}. No payment.`);
+        // Wrong - no payment and happiness penalty
+        updateHappiness(-10);
+        console.log(`WRONG! Box #${processedBox.id} TIN: ${processedBox.tin} - Player: ${playerResult}, Correct: ${correctResult}. No payment. Mood -10.`);
     }
     
     // Update money display
     document.getElementById('money-display').textContent = `Money: $${money}`;
-    
-    // Check for promotion
-    checkPromotion();
     
     // Remove the submitted box from carried boxes
     carriedBoxes.splice(processedIndex, 1);
@@ -622,7 +669,7 @@ function submitAllBoxes() {
         const playerResult = box.result;
         
         if (playerResult === correctResult) {
-            // Variable payment based on level
+            // Variable payment based on level (no happiness multiplier)
             let payment = 10;
             if (level === 0) payment = 100; // Junior gets $100
             else if (level === 1) payment = 500; // Mid gets $500  
@@ -630,9 +677,11 @@ function submitAllBoxes() {
             
             money += payment;
             totalEarned += payment;
-            console.log(`CORRECT! Box #${box.id} TIN: ${box.tin} - Paid $${payment}`);
+            updateHappiness(2); // Increase happiness for correct results
+            console.log(`CORRECT! Box #${box.id} TIN: ${box.tin} - Paid $${payment}. Mood +2.`);
         } else {
-            console.log(`WRONG! Box #${box.id} TIN: ${box.tin} - No payment`);
+            updateHappiness(-10);
+            console.log(`WRONG! Box #${box.id} TIN: ${box.tin} - No payment. Mood -10.`);
         }
         
         // Remove the box
@@ -643,7 +692,6 @@ function submitAllBoxes() {
     
     // Update displays
     document.getElementById('money-display').textContent = `Money: $${money}`;
-    checkPromotion();
     
     console.log(`Submitted ${processedBoxes.length} boxes, earned $${totalEarned} total`);
 }
@@ -701,9 +749,9 @@ function use0Card() {
     // Use 0-card on first available box (processed or unprocessed)
     let targetBox = null;
     
-    // First, try to find a box that can be reset (SPACE or pre-validated)
+    // First, try to find a box that can be reset (SPACE assignments only - not pre-validated)
     for (let box of carriedBoxes) {
-        if (box.result !== undefined && (box.assignedVia === 'space' || box.assignedVia === 'prevalidated')) {
+        if (box.result !== undefined && box.assignedVia === 'space') {
             targetBox = box;
             break;
         }
@@ -723,8 +771,8 @@ function use0Card() {
     
     // Check if box already has a result
     if (targetBox.result !== undefined) {
-        // Can reset SPACE assignments and pre-validated boxes, but not IRS machine results
-        if (targetBox.assignedVia === 'space' || targetBox.assignedVia === 'prevalidated') {
+        // Can only reset SPACE assignments, not pre-validated or IRS machine results
+        if (targetBox.assignedVia === 'space') {
             // Reset the box to unprocessed state
             targetBox.result = undefined;
             targetBox.assignedVia = undefined;
@@ -732,6 +780,8 @@ function use0Card() {
             targetBox.sprite.clearTint(); // Back to original color
             // Text remains unchanged, just clearing tint
             console.log(`Reset validation for box #${targetBox.id}`);
+        } else if (targetBox.assignedVia === 'prevalidated') {
+            console.log(`Cannot change pre-validated result for box #${targetBox.id}`);
         } else {
             console.log(`Cannot reset IRS machine result for box #${targetBox.id}`);
         }
@@ -751,7 +801,7 @@ function use0Card() {
 // Update function - main game loop
 function update() {
     // Player movement with level bonus
-    const baseSpeed = 200;
+    const baseSpeed = 300; // Increased from 200 (1.5x faster)
     const speedBonus = getCurrentLevel().speedBonus;
     const speed = baseSpeed + speedBonus;
     
@@ -846,11 +896,12 @@ function update() {
         
         // Check if box has expired
         if (currentTime - box.spawnTime > expirationTime) {
-            // Remove expired box
+            // Remove expired box and penalize happiness
             box.sprite.destroy();
             box.label.destroy();
             boxes.splice(i, 1);
-            console.log(`Box #${box.id} expired after ${Math.floor(expirationTime/1000)}s`);
+            updateHappiness(-5);
+            console.log(`Box #${box.id} expired after ${Math.floor(expirationTime/1000)}s. Mood -5.`);
         }
     }
 }
