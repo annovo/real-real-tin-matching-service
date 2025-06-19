@@ -30,17 +30,21 @@ let money = 0;
 let gameStartTime;
 let level = 0;
 let happiness = 50; // Start at Junior's initial mood
+let spaceCardIndex = 0; // Track which box to process next with SPACE
+let gameIsPaused = false; // Track pause state
+let pausedTime = 0; // Track how long game has been paused
+let bribeIndex = 0; // Track which processing box to bribe next
 
 // List of obviously bad TINs that should always be invalid
 const badTINs = ['000000000', '111111111', '999999999', '123456789'];
 
 // Level system (mood-based progression)
 const levels = [
-    { name: 'Junior', initMood: 50, speedBonus: 0, carryCapacity: 1, irsSlots: 1, preValidated: false, moodGainRate: 5.0, moodLossRate: 1.0, spawnSpeedMultiplier: 0.95 },
-    { name: 'Mid', initMood: 35, speedBonus: 100, carryCapacity: 2, irsSlots: 1, preValidated: false, moodGainRate: 3.5, moodLossRate: 1.2, spawnSpeedMultiplier: 1.5 },
-    { name: 'Senior', initMood: 25, speedBonus: 100, carryCapacity: 2, irsSlots: 2, preValidated: false, moodGainRate: 2.5, moodLossRate: 1.4, spawnSpeedMultiplier: 1.71 },
-    { name: 'Architect', initMood: 10, speedBonus: 100, carryCapacity: 2, irsSlots: 2, preValidated: true, moodGainRate: 1.0, moodLossRate: 1.6, spawnSpeedMultiplier: 2.0 },
-    { name: 'CEO', initMood: 0, speedBonus: 150, carryCapacity: 3, irsSlots: 3, preValidated: true, moodGainRate: 0.2, moodLossRate: 1.8, spawnSpeedMultiplier: 2.0 }
+    { name: 'Junior', initMood: 50, speedBonus: 0, carryCapacity: 1, irsSlots: 1, preValidated: false, moodGainRate: 5.0, moodLossRate: 1.0, spawnSpeedMultiplier: 0.95, bribeCost: 200 },
+    { name: 'Mid', initMood: 35, speedBonus: 100, carryCapacity: 2, irsSlots: 1, preValidated: false, moodGainRate: 3.5, moodLossRate: 1.2, spawnSpeedMultiplier: 1.5, bribeCost: 500 },
+    { name: 'Senior', initMood: 25, speedBonus: 100, carryCapacity: 2, irsSlots: 2, preValidated: false, moodGainRate: 2.5, moodLossRate: 1.4, spawnSpeedMultiplier: 1.71, bribeCost: 2000 },
+    { name: 'Architect', initMood: 10, speedBonus: 100, carryCapacity: 2, irsSlots: 2, preValidated: true, moodGainRate: 1.0, moodLossRate: 1.6, spawnSpeedMultiplier: 2.0, bribeCost: 5000 },
+    { name: 'CEO', initMood: 0, speedBonus: 150, carryCapacity: 3, irsSlots: 3, preValidated: true, moodGainRate: 0.2, moodLossRate: 1.8, spawnSpeedMultiplier: 2.0, bribeCost: 5000 }
 ];
 
 // Function to get current level info
@@ -56,10 +60,24 @@ function checkPromotion() {
         happiness = newLevel.initMood; // Reset to new level's starting mood
         console.log(`PROMOTION! You are now ${newLevel.name}! Mood reset to ${happiness}.`);
         document.getElementById('level-display').textContent = `Level: ${newLevel.name}`;
+        updateBribeDisplay(); // Update bribe rate display
         updateHappiness(0); // Update display without changing value
         return true;
     }
     return false;
+}
+
+// Function to update bribe rate display highlighting
+function updateBribeDisplay() {
+    // Remove current-level class from all levels
+    const briberLevels = document.querySelectorAll('.bribe-level');
+    briberLevels.forEach(el => el.classList.remove('current-level'));
+    
+    // Add current-level class to current level
+    const currentLevelElement = document.querySelector(`[data-level="${level}"]`);
+    if (currentLevelElement) {
+        currentLevelElement.classList.add('current-level');
+    }
 }
 
 // Function to update happiness and display
@@ -114,7 +132,7 @@ function formatTime(seconds) {
 
 // Function to get current difficulty based on elapsed time
 function getDifficulty() {
-    const elapsedMinutes = (Date.now() - gameStartTime) / 60000;
+    const elapsedMinutes = (Date.now() - gameStartTime - pausedTime) / 60000;
     return Math.min(elapsedMinutes / 30, 1); // 0 to 1 over 30 minutes
 }
 
@@ -129,7 +147,7 @@ function getSpawnDelay() {
 // Function to get current processing time
 function getProcessingTime() {
     const difficulty = getDifficulty();
-    return Math.max(1000, 3000 - (difficulty * 2000)); // 3s to 1s
+    return Math.max(2000, 5000 - (difficulty * 3000)); // 5s to 2s
 }
 
 // Function to get box expiration time (adaptive based on game pace)
@@ -201,6 +219,17 @@ function preload() {
 
 // Create function - sets up the game world
 function create() {
+    // DEBUG: Level selection at start
+    const debugLevel = prompt("DEBUG: Choose starting level (0=Junior, 1=Mid, 2=Senior, 3=Architect, 4=CEO) or press Cancel for Junior:");
+    if (debugLevel !== null && !isNaN(debugLevel)) {
+        const chosenLevel = Math.max(0, Math.min(4, parseInt(debugLevel)));
+        level = chosenLevel;
+        happiness = levels[level].initMood;
+        console.log(`DEBUG: Starting at ${levels[level].name} level with ${happiness} mood`);
+        document.getElementById('level-display').textContent = `Level: ${levels[level].name}`;
+        document.getElementById('happiness-display').textContent = `Mood: ${happiness}`;
+        updateBribeDisplay(); // Update bribe rate display for debug level
+    }
     // Create tiled background with proper borders
     const tileSize = 16; // 16x16 tiles
     const tilesX = Math.ceil(960 / tileSize); // Number of tiles needed horizontally (60 tiles)
@@ -351,6 +380,9 @@ function create() {
     // Record game start time
     gameStartTime = Date.now();
     
+    // Initialize bribe display
+    updateBribeDisplay();
+    
     // Set up WASD key handlers
     keys = this.input.keyboard.createCursorKeys();
     keys.w = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W);
@@ -360,11 +392,15 @@ function create() {
     keys.e = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     keys.q = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
     keys.space = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    keys.p = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P);
+    keys.b = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.B);
     
     // Set up dynamic box spawning timer (updates every second)
     this.time.addEvent({
         delay: 1000, // Check every second
         callback: () => {
+            if (gameIsPaused) return; // Don't spawn when paused
+            
             // Check if it's time to spawn based on dynamic delay
             if (!this.lastSpawnTime) this.lastSpawnTime = Date.now();
             if (Date.now() - this.lastSpawnTime >= getSpawnDelay()) {
@@ -456,7 +492,8 @@ function spawnBox() {
         x: tableX,
         y: spawnY,
         spawnTime: Date.now(), // Track when box was created
-        preValidated: isPreValidated
+        preValidated: isPreValidated,
+        isBribed: false // Track if this box has been bribed during processing
     };
     
     // If pre-validated, show result immediately
@@ -513,6 +550,9 @@ function pickupBox() {
         // Store as carried box
         carriedBoxes.push(nearestBox);
         
+        // Reset space card index when picking up boxes
+        spaceCardIndex = 0;
+        
         console.log(`Picked up box #${nearestBox.id} (${carriedBoxes.length}/${maxCapacity})`);
     }
 }
@@ -537,6 +577,13 @@ function dropBox() {
     
     // Add back to boxes array
     boxes.push(boxToDrop);
+    
+    // Reset space card index when dropping boxes
+    if (carriedBoxes.length > 0) {
+        spaceCardIndex = spaceCardIndex % carriedBoxes.length;
+    } else {
+        spaceCardIndex = 0;
+    }
     
     console.log(`Dropped box #${boxToDrop.id} (${carriedBoxes.length} remaining)`);
 }
@@ -588,6 +635,12 @@ function completeProcessing(boxToComplete) {
     
     // Remove from processing array
     processingBoxes.splice(index, 1);
+    
+    // Clean up bribe border if it exists
+    if (boxToComplete.bribeBorder) {
+        boxToComplete.bribeBorder.destroy();
+        boxToComplete.bribeBorder = null;
+    }
     
     // Update processing status
     if (processingBoxes.length === 0) {
@@ -730,9 +783,13 @@ function processAllBoxes() {
         console.log(`Started processing box #${boxToProcess.id} in slot ${slotIndex + 1}/${maxSlots}`);
         
         // Set processing timer for this box
+        const processingTime = getProcessingTime();
+        boxToProcess.processingStartTime = Date.now();
+        boxToProcess.originalProcessingTime = processingTime;
+        
         setTimeout(() => {
             completeProcessing(boxToProcess);
-        }, getProcessingTime());
+        }, processingTime);
     }
     
     // Show processing status if any boxes are processing
@@ -746,60 +803,181 @@ function processAllBoxes() {
 function use0Card() {
     if (carriedBoxes.length === 0) return; // Need to be carrying a box
     
-    // Use 0-card on first available box (processed or unprocessed)
-    let targetBox = null;
-    
-    // First, try to find a box that can be reset (SPACE assignments only - not pre-validated)
-    for (let box of carriedBoxes) {
-        if (box.result !== undefined && box.assignedVia === 'space') {
-            targetBox = box;
-            break;
-        }
+    // Reset index if it's out of bounds
+    if (spaceCardIndex >= carriedBoxes.length) {
+        spaceCardIndex = 0;
     }
     
-    // If no resettable box found, find first unprocessed box
-    if (!targetBox) {
-        for (let box of carriedBoxes) {
-            if (box.result === undefined) {
-                targetBox = box;
-                break;
+    // Find next changeable box starting from current index
+    let attempts = 0;
+    while (attempts < carriedBoxes.length) {
+        const targetBox = carriedBoxes[spaceCardIndex];
+        
+        // Check if this box can be changed
+        if (targetBox.result !== undefined) {
+            // Can only reset SPACE assignments, not pre-validated or IRS machine results
+            if (targetBox.assignedVia === 'space') {
+                // Reset the box to unprocessed state
+                targetBox.result = undefined;
+                targetBox.assignedVia = undefined;
+                targetBox.preValidated = false;
+                targetBox.sprite.clearTint(); // Back to original color
+                console.log(`Reset validation for box #${targetBox.id} (index ${spaceCardIndex})`);
+                
+                // Move to next box for next SPACE press
+                spaceCardIndex = (spaceCardIndex + 1) % carriedBoxes.length;
+                return;
+            } else if (targetBox.assignedVia === 'prevalidated') {
+                console.log(`Cannot change pre-validated result for box #${targetBox.id} (index ${spaceCardIndex})`);
+            } else {
+                console.log(`Cannot reset IRS machine result for box #${targetBox.id} (index ${spaceCardIndex})`);
             }
+        } else {
+            // Assign 0-card result to this unprocessed box
+            targetBox.result = 0;
+            targetBox.assignedVia = 'space';
+            targetBox.sprite.setTint(0xff0000); // Red tint
+            console.log(`Used 0-card on box #${targetBox.id} (index ${spaceCardIndex})`);
+            
+            // Move to next box for next SPACE press
+            spaceCardIndex = (spaceCardIndex + 1) % carriedBoxes.length;
+            return;
         }
+        
+        // Move to next box and try again
+        spaceCardIndex = (spaceCardIndex + 1) % carriedBoxes.length;
+        attempts++;
     }
     
-    if (!targetBox) return; // No suitable boxes
-    
-    // Check if box already has a result
-    if (targetBox.result !== undefined) {
-        // Can only reset SPACE assignments, not pre-validated or IRS machine results
-        if (targetBox.assignedVia === 'space') {
-            // Reset the box to unprocessed state
-            targetBox.result = undefined;
-            targetBox.assignedVia = undefined;
-            targetBox.preValidated = false;
-            targetBox.sprite.clearTint(); // Back to original color
-            // Text remains unchanged, just clearing tint
-            console.log(`Reset validation for box #${targetBox.id}`);
-        } else if (targetBox.assignedVia === 'prevalidated') {
-            console.log(`Cannot change pre-validated result for box #${targetBox.id}`);
-        } else {
-            console.log(`Cannot reset IRS machine result for box #${targetBox.id}`);
-        }
+    console.log("No boxes available for 0-card assignment");
+}
+
+// Function to bribe IRS for faster processing (cycles through boxes individually)
+function bribeIRS() {
+    const scene = game.scene.scenes[0]; // Get the main scene
+    if (processingBoxes.length === 0) {
+        console.log("No boxes being processed to bribe for");
         return;
     }
     
-    // Assign 0-card result
-    targetBox.result = 0;
-    targetBox.assignedVia = 'space';
+    // Reset bribe index if it's out of bounds
+    if (bribeIndex >= processingBoxes.length) {
+        bribeIndex = 0;
+    }
     
-    // Change appearance to show 0-card assignment
-    targetBox.sprite.setTint(0xff0000); // Red tint
+    // Find next unbribed box starting from current bribe index
+    let attempts = 0;
+    let targetBox = null;
     
-    console.log(`Used 0-card on box #${targetBox.id} TIN: ${targetBox.tin}`);
+    while (attempts < processingBoxes.length) {
+        const candidateBox = processingBoxes[bribeIndex];
+        
+        if (!candidateBox.isBribed) {
+            targetBox = candidateBox;
+            break;
+        }
+        
+        // Move to next box and try again
+        bribeIndex = (bribeIndex + 1) % processingBoxes.length;
+        attempts++;
+    }
+    
+    if (!targetBox) {
+        console.log("All processing boxes have already been bribed");
+        return;
+    }
+    
+    // Calculate cost with 2x multiplier for Senior+ levels
+    const currentLevel = getCurrentLevel();
+    const baseCost = currentLevel.bribeCost;
+    const multiplier = level >= 2 ? 2 : 1; // Senior+ pay 2x
+    const totalCost = baseCost * multiplier;
+    
+    if (money < totalCost) {
+        console.log(`Not enough money to bribe! Need $${totalCost}, have $${money}`);
+        return;
+    }
+    
+    // Pay the bribe cost
+    money -= totalCost;
+    targetBox.isBribed = true;
+    
+    // Add yellow border graphics to show bribed status
+    if (!targetBox.bribeBorder) {
+        targetBox.bribeBorder = scene.add.graphics();
+        targetBox.bribeBorder.lineStyle(4, 0xffff00); // Yellow border, 4px thick
+        
+        // Get banner dimensions (assuming banner is scaled to 0.67)
+        const bannerWidth = targetBox.sprite.width * 0.67;
+        const bannerHeight = targetBox.sprite.height * 0.67;
+        
+        // Draw rectangle border around the banner
+        targetBox.bribeBorder.strokeRect(
+            targetBox.sprite.x - bannerWidth/2, 
+            targetBox.sprite.y - bannerHeight/2, 
+            bannerWidth, 
+            bannerHeight
+        );
+    }
+    
+    // Calculate remaining processing time and speed it up by 80%
+    const elapsed = Date.now() - targetBox.processingStartTime;
+    const remaining = targetBox.originalProcessingTime - elapsed;
+    const acceleratedTime = remaining * 0.2; // 80% faster = 20% of original time
+    
+    // Clear the old timeout and set a new faster one
+    setTimeout(() => {
+        if (processingBoxes.includes(targetBox)) {
+            completeProcessing(targetBox);
+        }
+    }, Math.max(100, acceleratedTime)); // Minimum 100ms
+    
+    console.log(`Bribed IRS for $${totalCost}! Box #${targetBox.id} (index ${bribeIndex}) processing accelerated by 80%`);
+    
+    // Move to next box for next bribe
+    bribeIndex = (bribeIndex + 1) % processingBoxes.length;
+    
+    // Update money display
+    document.getElementById('money-display').textContent = `Money: $${money}`;
 }
 
 // Update function - main game loop
 function update() {
+    // Handle pause toggle
+    if (Phaser.Input.Keyboard.JustDown(keys.p)) {
+        gameIsPaused = !gameIsPaused;
+        if (gameIsPaused) {
+            this.pauseStartTime = Date.now();
+            console.log("Game PAUSED");
+        } else {
+            pausedTime += Date.now() - this.pauseStartTime;
+            console.log("Game RESUMED");
+        }
+    }
+    
+    // Skip all game logic if paused
+    if (gameIsPaused) {
+        // Show pause indicator
+        if (!this.pauseText) {
+            this.pauseText = this.add.text(480, 360, 'PAUSED\nPress P to Resume', {
+                fontSize: '48px',
+                fill: '#ffffff',
+                fontFamily: 'Arial',
+                align: 'center',
+                backgroundColor: '#000000',
+                padding: { x: 20, y: 20 }
+            }).setOrigin(0.5);
+            this.pauseText.setDepth(1000); // Ensure it's on top
+        }
+        return;
+    } else {
+        // Remove pause indicator
+        if (this.pauseText) {
+            this.pauseText.destroy();
+            this.pauseText = null;
+        }
+    }
+    
     // Player movement with level bonus
     const baseSpeed = 300; // Increased from 200 (1.5x faster)
     const speedBonus = getCurrentLevel().speedBonus;
@@ -861,6 +1039,11 @@ function update() {
         use0Card();
     }
     
+    // Handle B key for bribing IRS
+    if (Phaser.Input.Keyboard.JustDown(keys.b)) {
+        bribeIRS();
+    }
+    
     // Update carried boxes position (show as small banners following player)
     for (let i = 0; i < carriedBoxes.length; i++) {
         const box = carriedBoxes[i];
@@ -880,8 +1063,8 @@ function update() {
         box.label.setPosition(box.x, box.y);
     }
     
-    // Update game timer (show elapsed time)
-    const elapsedSeconds = Math.floor((Date.now() - gameStartTime) / 1000);
+    // Update game timer (show elapsed time excluding paused time)
+    const elapsedSeconds = Math.floor((Date.now() - gameStartTime - pausedTime) / 1000);
     document.getElementById('timer-display').textContent = formatTime(elapsedSeconds);
     
     // Check for expired boxes
@@ -894,8 +1077,9 @@ function update() {
         // Skip if box is being processed or already processed
         if (processingBoxes.includes(box) || box.result !== undefined) continue;
         
-        // Check if box has expired
-        if (currentTime - box.spawnTime > expirationTime) {
+        // Check if box has expired (account for paused time)
+        const boxAge = currentTime - box.spawnTime - (box.pausedDuringLife || 0);
+        if (boxAge > expirationTime) {
             // Remove expired box and penalize happiness
             box.sprite.destroy();
             box.label.destroy();
