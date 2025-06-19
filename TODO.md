@@ -87,41 +87,7 @@
 - [x] IRS slots system implemented (Senior: 2 slots, CEO: 3 slots)
 - [x] Test: Player can earn promotions and get buffs
 
-### 📋 NEXT STEPS (In Order)
-
-**Step 2.6: TIN Labels** (ALREADY IMPLEMENTED - SKIP)
-- TIN numbers already shown on box labels
-
-## Phase 3: Game Progression
-
-**Step 3.1: Timer and Difficulty**
-- [ ] Add 30-minute game timer (display in top-right)
-- [ ] Increase box spawn rate over time (start 5s, decrease to 2s minimum)
-- [ ] Decrease IRS processing time over time (start 3s, decrease to 1s minimum)
-- [ ] Test: Game gets progressively harder over time
-
-**Step 3.2: Level System**
-- [ ] Add level variable (start at 0 = Intern)
-- [ ] Define promotion thresholds: Junior($500), Mid($1200), Senior($2500), Architect($5000), CEO($10000)
-- [ ] Display current level in top-center
-- [ ] Add level buffs: Junior(+speed), Mid(+carry 2 boxes), Senior(+IRS slots)
-- [ ] Test: Player can earn promotions and get buffs
-
-## Phase 3: Game Progression
-
-**Step 3.1: Timer and Difficulty**
-- [ ] Add 30-minute game timer (display in top-right)
-- [ ] Increase box spawn rate over time (start 5s, decrease to 2s minimum)
-- [ ] Decrease IRS processing time over time (start 3s, decrease to 1s minimum)
-- [ ] Test: Game gets progressively harder over time
-
-**Step 3.2: Level System**
-- [ ] Add level variable (start at 0 = Intern)
-- [ ] Define promotion thresholds: Junior($500), Mid($1200), Senior($2500), Architect($5000), CEO($10000)
-- [ ] Display current level in top-center
-- [ ] Add level buffs: Junior(+speed), Mid(+carry 2 boxes), Senior(+IRS slots)
-- [ ] Test: Player can earn promotions and get buffs
-
+### 🔄 CURRENT TASK
 **Step 3.3: Happiness System**
 - [ ] Add happiness variable (start at 0, range -100 to +100)
 - [ ] Add happiness meter display
@@ -129,6 +95,8 @@
 - [ ] Happiness affects payment multiplier (negative = less money)
 - [ ] Game over if happiness reaches -100
 - [ ] Test: Mistakes affect happiness and earnings
+
+### 📋 NEXT STEPS (In Order)
 
 ## Phase 4: Advanced Features
 

@@ -4,8 +4,8 @@
 // Game configuration
 const config = {
     type: Phaser.AUTO,
-    width: 800,
-    height: 600,
+    width: 960,
+    height: 720,
     parent: 'game-container',
     backgroundColor: '#34495e',
     scene: {
@@ -27,11 +27,8 @@ let processingBoxes = [];
 let processingStatus;
 let returnStation;
 let money = 0;
-let moneyDisplay;
-let timerDisplay;
 let gameStartTime;
 let level = 0;
-let levelDisplay;
 
 // List of obviously bad TINs that should always be invalid
 const badTINs = ['000000000', '111111111', '999999999', '123456789'];
@@ -56,7 +53,7 @@ function checkPromotion() {
         level++;
         const newLevel = getCurrentLevel();
         console.log(`PROMOTION! You are now ${newLevel.name}!`);
-        levelDisplay.setText(`Level: ${newLevel.name}`);
+        document.getElementById('level-display').textContent = `Level: ${newLevel.name}`;
         return true;
     }
     return false;
@@ -123,74 +120,185 @@ function determineTINValidity(tin) {
     return Math.random() < 0.5 ? 1 : 0;
 }
 
-// Preload function - loads assets (empty for now)
+// Preload function - loads assets
 function preload() {
-    // Assets will be loaded here later
+    // Try multiple path variations to find the correct one
+    console.log('Attempting to load tileset...');
+    
+    // Try different paths
+    this.load.image('testTiles1', './assets/images/tiles/roguelikeIndoor_transparent.png');
+    this.load.image('testTiles2', '/assets/images/tiles/roguelikeIndoor_transparent.png');
+    this.load.image('testTiles3', 'assets/images/tiles/roguelikeIndoor_transparent.png');
+    
+    // Load tileset with 16x16 tiles and 1px spacing 
+    this.load.spritesheet('tiles', 'assets/images/tiles/roguelikeIndoor_transparent.png', {
+        frameWidth: 16,
+        frameHeight: 16,
+        margin: 0,      // No margin at edges
+        spacing: 1      // 1px between tiles
+    });
+    
+    // Load banner image for TIN boxes
+    this.load.image('banner', 'assets/images/objects/banner_modern.png');
+    
+    // Add error event listeners
+    this.load.on('loaderror', function (event) {
+        console.log('Load error:', event);
+    });
+    
+    this.load.on('complete', function () {
+        console.log('Loading complete');
+    });
 }
 
 // Create function - sets up the game world
 function create() {
-    // Add a simple background
-    this.add.rectangle(400, 300, 800, 600, 0x2c3e50);
+    // Create tiled background with proper borders
+    const tileSize = 16; // 16x16 tiles
+    const tilesX = Math.ceil(960 / tileSize); // Number of tiles needed horizontally (60 tiles)
+    const tilesY = Math.ceil(720 / tileSize); // Number of tiles needed vertically (45 tiles)
     
-    // Add title text
-    this.add.text(400, 50, 'TIN Matching Service', {
-        fontSize: '24px',
-        fill: '#ecf0f1',
-        fontFamily: 'Arial'
-    }).setOrigin(0.5);
+    // Tile indices (converted from 1-based row/col to 0-based array index)
+    // Formula: index = (row - 1) * 27 + (col - 1)
+    const tiles = {
+        topLeft: (14 - 1) * 27 + (13 - 1),      // Row 14, Col 13 (-1)
+        topEdge: (18 - 1) * 27 + (11 - 1),      // Row 18, Col 11 (-1)  
+        topRight: (14 - 1) * 27 + (14 - 1),     // Row 14, Col 14 (-1)
+        rightEdge: (15 - 1) * 27 + (14 - 1),    // Row 15, Col 14 (-1)
+        bottomRight: (17 - 1) * 27 + (14 - 1),  // Row 17, Col 14 (-1)
+        bottomEdge: (18 - 1) * 27 + (11 - 1),   // Row 18, Col 11 (-1)
+        bottomLeft: (17 - 1) * 27 + (13 - 1),   // Row 17, Col 13 (-1)
+        leftEdge: (15 - 1) * 27 + (13 - 1),     // Row 15, Col 13 (-1)
+        fill: 24                                 // Original floor tile (index 24)
+    };
     
-    // Create player - dark green 32x32 rectangle at center (400, 300)
-    player = this.add.rectangle(400, 300, 32, 32, 0x228B22);
+    // Check if tileset loaded properly
+    if (this.textures.exists('tiles')) {
+        console.log('Creating bordered tilemap...');
+        
+        // First pass: Place floor tiles everywhere
+        for (let x = 0; x < tilesX; x++) {
+            for (let y = 0; y < tilesY; y++) {
+                this.add.image(x * 16 + 8, y * 16 + 8, 'tiles', tiles.fill);
+            }
+        }
+        
+        // Second pass: Place border tiles on top
+        for (let x = 0; x < tilesX; x++) {
+            for (let y = 0; y < tilesY; y++) {
+                let tileIndex = null;
+                
+                // Determine which border tile to use based on position
+                if (x === 0 && y === 0) {
+                    // Top-left corner
+                    tileIndex = tiles.topLeft;
+                } else if (x === tilesX - 1 && y === 0) {
+                    // Top-right corner
+                    tileIndex = tiles.topRight;
+                } else if (x === tilesX - 1 && y === tilesY - 1) {
+                    // Bottom-right corner
+                    tileIndex = tiles.bottomRight;
+                } else if (x === 0 && y === tilesY - 1) {
+                    // Bottom-left corner
+                    tileIndex = tiles.bottomLeft;
+                } else if (y === 0) {
+                    // Top edge
+                    tileIndex = tiles.topEdge;
+                } else if (x === tilesX - 1) {
+                    // Right edge
+                    tileIndex = tiles.rightEdge;
+                } else if (y === tilesY - 1) {
+                    // Bottom edge
+                    tileIndex = tiles.bottomEdge;
+                } else if (x === 0) {
+                    // Left edge
+                    tileIndex = tiles.leftEdge;
+                }
+                
+                // Only place border tiles (skip interior)
+                if (tileIndex !== null) {
+                    this.add.image(x * 16 + 8, y * 16 + 8, 'tiles', tileIndex);
+                }
+            }
+        }
+        
+        // Create vertical table for TIN boxes (positioned 32px away from border tiles)
+        const tableStartX = 2; // Skip border tile (x=0) + 1 tile gap + 32px gap
+        const tableStartY = 2; // Skip border tile (y=0) + 1 tile gap + 32px gap
+        const tableLength = 18; // Longer table while maintaining 32px gaps
+        
+        // Table tile indices
+        const tableTiles = {
+            top: (1 - 1) * 27 + (6 - 1),    // Row 1, Col 6
+            middle: (2 - 1) * 27 + (6 - 1), // Row 2, Col 6
+            bottom: (3 - 1) * 27 + (6 - 1)  // Row 3, Col 6
+        };
+        
+        // Store table position for box spawning
+        this.tableX = tableStartX * 16 + 8 + 32 + 20;
+        this.tableY = (tableStartY + tableLength - 1) * 16 + 8 + 32; // Bottom of table
+        this.tableTopY = (tableStartY) * 16 + 8 + 32; // Top of table
+        
+        for (let y = 0; y < tableLength; y++) {
+            let tileToUse;
+            
+            if (y === 0) {
+                // First tile - top
+                tileToUse = tableTiles.top;
+            } else if (y === tableLength - 1) {
+                // Last tile - bottom
+                tileToUse = tableTiles.bottom;
+            } else {
+                // Middle tiles - 10 tiles
+                tileToUse = tableTiles.middle;
+            }
+            
+            const tableTile = this.add.image(tableStartX * 16 + 8 + 32 + 20, (tableStartY + y) * 16 + 8 + 32, 'tiles', tileToUse);
+            tableTile.setScale(5);
+            tableTile.texture.setFilter(Phaser.Textures.NEAREST); // Crisp pixel art scaling
+        }
+        
+        console.log('Bordered tilemap and table created successfully');
+    } else {
+        // Fallback to solid background if tileset failed to load
+        this.add.rectangle(480, 360, 960, 720, 0x2c3e50);
+        console.log('Tileset failed to load, using solid background');
+    }
     
-    // Create IRS Machine - gray 64x48 rectangle at (650, 300)
-    irsMachine = this.add.rectangle(650, 300, 64, 48, 0x666666);
+    
+    // Create player - dark green 57x57 rectangle at center (480, 360)
+    player = this.add.rectangle(480, 360, 57, 57, 0x228B22);
+    
+    // Create IRS Machine - gray 154x116 rectangle at (780, 360)
+    irsMachine = this.add.rectangle(780, 360, 154, 116, 0x666666);
     
     // Add IRS Machine label
-    this.add.text(650, 270, 'IRS MACHINE', {
-        fontSize: '12px',
+    this.add.text(780, 324, 'IRS MACHINE', {
+        fontSize: '14px',
         fill: '#ffffff',
         fontFamily: 'Arial'
     }).setOrigin(0.5);
     
     // Add processing status text (initially hidden)
-    processingStatus = this.add.text(650, 330, 'PROCESSING...', {
-        fontSize: '10px',
+    processingStatus = this.add.text(780, 396, 'PROCESSING...', {
+        fontSize: '12px',
         fill: '#ffff00',
         fontFamily: 'Arial'
     }).setOrigin(0.5);
     processingStatus.setVisible(false);
     
-    // Create Return Station - blue 64x48 rectangle at (350, 300) - middle between spawn and IRS
-    returnStation = this.add.rectangle(350, 300, 64, 48, 0x0066cc);
+    // Create Return Station - blue 77x58 rectangle at (420, 660) - bottom of screen
+    returnStation = this.add.rectangle(420, 660, 77, 58, 0x0066cc);
     
     // Add Return Station label
-    this.add.text(350, 270, 'RETURN RESULTS', {
-        fontSize: '10px',
+    this.add.text(420, 624, 'RETURN RESULTS', {
+        fontSize: '12px',
         fill: '#ffffff',
         fontFamily: 'Arial'
     }).setOrigin(0.5);
     
-    // Add money display in top-left corner
-    moneyDisplay = this.add.text(50, 30, `Money: $${money}`, {
-        fontSize: '16px',
-        fill: '#00ff00',
-        fontFamily: 'Arial'
-    });
     
-    // Add timer display in top-right corner (shows elapsed time)
-    timerDisplay = this.add.text(750, 30, formatTime(0), {
-        fontSize: '16px',
-        fill: '#ffff00',
-        fontFamily: 'Arial'
-    });
     
-    // Add level display in top-center
-    levelDisplay = this.add.text(400, 30, `Level: ${getCurrentLevel().name}`, {
-        fontSize: '16px',
-        fill: '#ff8800',
-        fontFamily: 'Arial'
-    }).setOrigin(0.5);
     
     // Record game start time
     gameStartTime = Date.now();
@@ -220,13 +328,6 @@ function create() {
         loop: true
     });
     
-    // Add status text (moved down to not overlap with player)
-    this.add.text(400, 500, 'Step 3.2: Level system! Earn promotions for speed+capacity+IRS slots!', {
-        fontSize: '11px',
-        fill: '#bdc3c7',
-        fontFamily: 'Arial',
-        align: 'center'
-    }).setOrigin(0.5);
 }
 
 // Function to spawn a new box
@@ -236,16 +337,57 @@ function spawnBox() {
         return;
     }
     
-    // Create brown 32x32 rectangle at (50, 300)
-    const box = this.add.rectangle(50, 300, 32, 32, 0x8B4513);
+    // Calculate next position on table (stack boxes)
+    const tableX = this.tableX;
+    let spawnY = this.tableY;
     
-    // Add ID label to the box
+    // Find gaps and stack boxes efficiently
+    const boxesOnTable = boxes.filter(b => Math.abs(b.x - tableX) < 50);
+    
+    if (boxesOnTable.length > 0) {
+        // Sort boxes by Y position (bottom to top)
+        boxesOnTable.sort((a, b) => b.y - a.y);
+        
+        // Look for gaps between boxes (40px spacing)
+        let foundGap = false;
+        for (let i = 0; i < boxesOnTable.length - 1; i++) {
+            const currentBox = boxesOnTable[i];
+            const nextBox = boxesOnTable[i + 1];
+            const gapSize = currentBox.y - nextBox.y;
+            
+            // If gap is larger than box height + some buffer, place box there
+            if (gapSize > 80) {
+                spawnY = currentBox.y - 40;
+                foundGap = true;
+                break;
+            }
+        }
+        
+        // If no gap found, check if we can stack on top
+        if (!foundGap) {
+            const topBox = boxesOnTable.reduce((highest, box) => box.y < highest.y ? box : highest);
+            const nextY = topBox.y - 40;
+            
+            // If next position would go above table top, start from bottom again
+            if (nextY < this.tableTopY) {
+                spawnY = this.tableY; // Reset to bottom
+            } else {
+                spawnY = nextY; // Stack above the highest box
+            }
+        }
+    }
+    
+    // Create banner image at calculated position
+    const box = this.add.image(tableX, spawnY, 'banner');
+    box.setScale(0.67); // 1.5x smaller (1/1.5 = 0.67)
+    
+    // Add TIN number in the middle of the banner
     const boxId = boxIdCounter++;
     const tin = generateRandomTIN();
     const validity = determineTINValidity(tin); // Determine validity at spawn
-    const label = this.add.text(50, 285, `#${boxId}\n${tin}`, {
-        fontSize: '10px',
-        fill: '#ffffff',
+    const label = this.add.text(tableX, spawnY, tin, {
+        fontSize: '16px',
+        fill: '#000000',
         fontFamily: 'Arial',
         align: 'center'
     }).setOrigin(0.5);
@@ -263,8 +405,8 @@ function spawnBox() {
         validity: validity, // Store the predetermined validity
         sprite: box,
         label: label,
-        x: 50,
-        y: 300,
+        x: tableX,
+        y: spawnY,
         spawnTime: Date.now(), // Track when box was created
         preValidated: isPreValidated
     };
@@ -275,12 +417,12 @@ function spawnBox() {
         boxData.assignedVia = 'prevalidated';
         
         if (validity === 1) {
-            box.setFillStyle(0x00ff00); // Green for valid
+            box.setTint(0x00ff00); // Green tint for valid
         } else {
-            box.setFillStyle(0xff0000); // Red for invalid
+            box.setTint(0xff0000); // Red tint for invalid
         }
         
-        label.setText(`#${boxId} = ${validity}\n${tin}`);
+        // Keep original TIN text, just use color for validation result
         console.log(`Pre-validated box #${boxId} spawned with result: ${validity}`);
     }
     
@@ -289,10 +431,10 @@ function spawnBox() {
     console.log(`Spawned box #${boxId} with TIN: ${tin}, validity: ${validity}, total boxes: ${boxes.length}`);
 }
 
-// Function to find nearest box within 50px
+// Function to find nearest box within 60px
 function findNearestBox() {
     let nearestBox = null;
-    let nearestDistance = 50; // Max pickup distance
+    let nearestDistance = 60; // Max pickup distance
     
     for (let box of boxes) {
         const distance = Phaser.Math.Distance.Between(player.x, player.y, box.x, box.y);
@@ -337,11 +479,11 @@ function dropBox() {
     boxToDrop.x = player.x;
     boxToDrop.y = player.y;
     boxToDrop.sprite.setPosition(player.x, player.y);
-    boxToDrop.label.setPosition(player.x, player.y - 15);
+    boxToDrop.label.setPosition(player.x, player.y); // Center text on banner
     
     // Show the box and label again
     boxToDrop.sprite.setVisible(true);
-    boxToDrop.sprite.setScale(1.0); // Reset to normal size
+    boxToDrop.sprite.setScale(0.67); // Keep smaller banner size
     boxToDrop.label.setVisible(true);
     boxToDrop.label.setScale(1.0); // Reset to normal size
     
@@ -355,9 +497,9 @@ function dropBox() {
 function processBox() {
     if (carriedBoxes.length === 0) return; // Need to carry a box
     
-    // Check if player is near IRS machine (within 80px)
+    // Check if player is near IRS machine (within 96px)
     const distance = Phaser.Math.Distance.Between(player.x, player.y, irsMachine.x, irsMachine.y);
-    if (distance > 80) return;
+    if (distance > 96) return;
     
     // Use the multi-box processing function instead
     processAllBoxes();
@@ -376,25 +518,24 @@ function completeProcessing(boxToComplete) {
     boxToComplete.result = result;
     boxToComplete.assignedVia = 'irs'; // Mark as IRS machine result
     
-    // Change box color based on result
+    // Change box tint based on result
     if (result === 1) {
-        boxToComplete.sprite.setFillStyle(0x00ff00); // Green for valid
+        boxToComplete.sprite.setTint(0x00ff00); // Green tint for valid
     } else {
-        boxToComplete.sprite.setFillStyle(0xff0000); // Red for invalid
+        boxToComplete.sprite.setTint(0xff0000); // Red tint for invalid
     }
     
-    // Update label to show result
-    boxToComplete.label.setText(`#${boxToComplete.id} = ${result}\n${boxToComplete.tin}`);
+    // Keep original TIN text, just use color for validation result
     
     console.log(`Processing complete: Box #${boxToComplete.id} TIN: ${boxToComplete.tin} = ${result}`);
     
     // Move processed box out of machine (to the right)
-    boxToComplete.sprite.setPosition(irsMachine.x + 50, irsMachine.y + 20);
-    boxToComplete.label.setPosition(irsMachine.x + 50, irsMachine.y + 5);
+    boxToComplete.sprite.setPosition(irsMachine.x + 60, irsMachine.y + 24);
+    boxToComplete.label.setPosition(irsMachine.x + 60, irsMachine.y + 24); // Center text on banner
     
     // Add to boxes array so player can pick it up
-    boxToComplete.x = irsMachine.x + 50;
-    boxToComplete.y = irsMachine.y + 20;
+    boxToComplete.x = irsMachine.x + 60;
+    boxToComplete.y = irsMachine.y + 24;
     boxes.push(boxToComplete);
     
     // Remove from processing array
@@ -424,9 +565,9 @@ function submitBox() {
     
     if (!processedBox) return; // No processed boxes
     
-    // Check if player is near return station (within 80px)
+    // Check if player is near return station (within 96px)
     const distance = Phaser.Math.Distance.Between(player.x, player.y, returnStation.x, returnStation.y);
-    if (distance > 80) return;
+    if (distance > 96) return;
     
     // Get the correct result (predetermined validity)
     const correctResult = processedBox.validity;
@@ -448,7 +589,7 @@ function submitBox() {
     }
     
     // Update money display
-    moneyDisplay.setText(`Money: $${money}`);
+    document.getElementById('money-display').textContent = `Money: $${money}`;
     
     // Check for promotion
     checkPromotion();
@@ -468,7 +609,7 @@ function submitAllBoxes() {
     
     // Check if player is near return station
     const distance = Phaser.Math.Distance.Between(player.x, player.y, returnStation.x, returnStation.y);
-    if (distance > 80) return;
+    if (distance > 96) return;
     
     let totalEarned = 0;
     
@@ -501,7 +642,7 @@ function submitAllBoxes() {
     }
     
     // Update displays
-    moneyDisplay.setText(`Money: $${money}`);
+    document.getElementById('money-display').textContent = `Money: $${money}`;
     checkPromotion();
     
     console.log(`Submitted ${processedBoxes.length} boxes, earned $${totalEarned} total`);
@@ -515,7 +656,7 @@ function processAllBoxes() {
     
     // Check if player is near IRS machine
     const distance = Phaser.Math.Distance.Between(player.x, player.y, irsMachine.x, irsMachine.y);
-    if (distance > 80) return;
+    if (distance > 96) return;
     
     // Process up to available slots
     const availableSlots = maxSlots - processingBoxes.length;
@@ -530,11 +671,11 @@ function processAllBoxes() {
         
         // Position box in machine (stack them vertically)
         const slotIndex = processingBoxes.length - 1;
-        const yOffset = 20 + (slotIndex * 25);
+        const yOffset = 24 + (slotIndex * 30);
         boxToProcess.sprite.setPosition(irsMachine.x, irsMachine.y + yOffset);
-        boxToProcess.sprite.setScale(1.0);
+        boxToProcess.sprite.setScale(0.67); // Keep smaller banner size
         boxToProcess.sprite.setVisible(true);
-        boxToProcess.label.setPosition(irsMachine.x, irsMachine.y + yOffset - 15);
+        boxToProcess.label.setPosition(irsMachine.x, irsMachine.y + yOffset); // Center text on banner
         boxToProcess.label.setScale(1.0);
         boxToProcess.label.setVisible(true);
         
@@ -588,8 +729,8 @@ function use0Card() {
             targetBox.result = undefined;
             targetBox.assignedVia = undefined;
             targetBox.preValidated = false;
-            targetBox.sprite.setFillStyle(0x8B4513); // Back to brown
-            targetBox.label.setText(`#${targetBox.id}\n${targetBox.tin}`);
+            targetBox.sprite.clearTint(); // Back to original color
+            // Text remains unchanged, just clearing tint
             console.log(`Reset validation for box #${targetBox.id}`);
         } else {
             console.log(`Cannot reset IRS machine result for box #${targetBox.id}`);
@@ -602,8 +743,7 @@ function use0Card() {
     targetBox.assignedVia = 'space';
     
     // Change appearance to show 0-card assignment
-    targetBox.sprite.setFillStyle(0xff0000); // Red
-    targetBox.label.setText(`#${targetBox.id} = 0\n${targetBox.tin}`);
+    targetBox.sprite.setTint(0xff0000); // Red tint
     
     console.log(`Used 0-card on box #${targetBox.id} TIN: ${targetBox.tin}`);
 }
@@ -629,17 +769,18 @@ function update() {
         player.x += speed * this.sys.game.loop.delta / 1000;
     }
     
-    // Keep player within world boundaries (800x600)
-    // Player is 32x32, so keep center at least 16px from edges
-    player.x = Phaser.Math.Clamp(player.x, 16, 800 - 16);
-    player.y = Phaser.Math.Clamp(player.y, 16, 600 - 16);
+    // Keep player within world boundaries, away from border tiles
+    // Player is 57x57 (29px radius), borders are 16px wide
+    // Left/Right: 45px from edges, Top/Bottom: 53px from edges (extra 8px gap)
+    player.x = Phaser.Math.Clamp(player.x, 45, 960 - 45);
+    player.y = Phaser.Math.Clamp(player.y, 53, 720 - 53);
     
     // Handle E key for pickup OR processing OR submission
     if (Phaser.Input.Keyboard.JustDown(keys.e)) {
         // Check if near return station first (for processed boxes)
         const returnDistance = Phaser.Math.Distance.Between(player.x, player.y, returnStation.x, returnStation.y);
         const hasProcessedBox = carriedBoxes.some(box => box.result !== undefined);
-        if (returnDistance <= 80 && hasProcessedBox) {
+        if (returnDistance <= 96 && hasProcessedBox) {
             // Submit ALL processed boxes
             submitAllBoxes();
         } else {
@@ -647,7 +788,7 @@ function update() {
             const machineDistance = Phaser.Math.Distance.Between(player.x, player.y, irsMachine.x, irsMachine.y);
             const hasUnprocessedBox = carriedBoxes.some(box => box.result === undefined);
             const maxSlots = getCurrentLevel().irsSlots;
-            if (machineDistance <= 80 && processingBoxes.length < maxSlots && hasUnprocessedBox) {
+            if (machineDistance <= 96 && processingBoxes.length < maxSlots && hasUnprocessedBox) {
                 // Process ALL unprocessed boxes
                 processAllBoxes();
             } else {
@@ -670,23 +811,28 @@ function update() {
         use0Card();
     }
     
-    // Update carried boxes position (show as small rectangles following player)
+    // Update carried boxes position (show as small banners following player)
     for (let i = 0; i < carriedBoxes.length; i++) {
         const box = carriedBoxes[i];
-        const offsetX = 20 + (i * 15); // Stack them horizontally
-        const offsetY = -20;
+        const offsetX = 24 + (i * 18); // Stack them horizontally
+        const offsetY = -24;
         
         box.sprite.setPosition(player.x + offsetX, player.y + offsetY);
         box.sprite.setScale(0.6); // Make it smaller when carried
         box.sprite.setVisible(true); // Make sure it's visible
-        box.label.setPosition(player.x + offsetX, player.y + offsetY - 15);
+        box.label.setPosition(player.x + offsetX, player.y + offsetY); // Center the text on the banner
         box.label.setScale(0.6); // Smaller label too
         box.label.setVisible(true);
     }
     
+    // Update box positions for non-physics boxes
+    for (let box of boxes) {
+        box.label.setPosition(box.x, box.y);
+    }
+    
     // Update game timer (show elapsed time)
     const elapsedSeconds = Math.floor((Date.now() - gameStartTime) / 1000);
-    timerDisplay.setText(formatTime(elapsedSeconds));
+    document.getElementById('timer-display').textContent = formatTime(elapsedSeconds);
     
     // Check for expired boxes
     const expirationTime = getBoxExpirationTime();

@@ -5,23 +5,75 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Real-Time TIN Matching Service</title>
     <style>
+        @font-face {
+            font-family: 'Jersey 15';
+            src: url('assets/fonts/Jersey_15/Jersey15-Regular.ttf') format('truetype');
+            font-display: swap;
+        }
         body {
             margin: 0;
             padding: 20px;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
             background-color: #2c3e50;
-            font-family: Arial, sans-serif;
+            font-family: 'Jersey 15', monospace;
+        }
+        #game-header {
+            width: 960px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background-color: #34495e;
+            border-radius: 8px 8px 0 0;
+            border: 2px solid #34495e;
+            border-bottom: none;
+        }
+        #game-title {
+            font-size: 29px;
+            color: #ecf0f1;
+            margin: 0;
+            font-family: 'Jersey 15', monospace;
+        }
+        #game-stats {
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+        #money-display {
+            font-size: 19px;
+            color: #00ff00;
+            font-family: 'Jersey 15', monospace;
+        }
+        #level-display {
+            font-size: 19px;
+            color: #ff8800;
+            font-family: 'Jersey 15', monospace;
+        }
+        #timer-display {
+            font-size: 19px;
+            color: #ffff00;
+            font-family: 'Jersey 15', monospace;
         }
         #game-container {
             border: 2px solid #34495e;
-            border-radius: 8px;
+            border-radius: 0 0 8px 8px;
+            border-top: none;
         }
     </style>
 </head>
 <body>
+    <div id="game-header">
+        <h1 id="game-title">TIN Matching Service</h1>
+        <div id="game-stats">
+            <div id="money-display">Money: $0</div>
+            <div id="level-display">Level: Junior</div>
+            <div id="timer-display">00:00</div>
+        </div>
+    </div>
     <div id="game-container"></div>
     
     <!-- Phaser 3 CDN -->
