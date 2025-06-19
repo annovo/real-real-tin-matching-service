@@ -3,88 +3,109 @@
 ## Phase 1: Foundation (Test Each Step)
 
 ### ✅ COMPLETED
-- None yet (starting fresh)
-
-### 🔄 CURRENT TASK
 **Step 1.1: Basic HTML + Phaser Setup**
-- [ ] Create index.html with Phaser CDN
-- [ ] Create minimal game.js with empty Phaser config
-- [ ] Test: Game loads without errors, shows empty canvas
-
-### 📋 NEXT STEPS (In Order)
+- [x] Create index.html with Phaser CDN
+- [x] Create minimal game.js with empty Phaser config
+- [x] Test: Game loads without errors, shows empty canvas
 
 **Step 1.2: Add Player**
-- [ ] Add green 32x32 rectangle as player at center (400, 300)
-- [ ] Test: Green square appears in center
+- [x] Add green 32x32 rectangle as player at center (400, 300)
+- [x] Test: Green square appears in center
 
 **Step 1.3: Player Movement**
-- [ ] Add WASD key handlers in create()
-- [ ] Implement movement in update() (200px/second speed)
-- [ ] Add world boundaries (stay within 800x600)
-- [ ] Test: Player moves smoothly with WASD, can't leave screen
+- [x] Add WASD key handlers in create()
+- [x] Implement movement in update() (200px/second speed)
+- [x] Add world boundaries (stay within 800x600)
+- [x] Test: Player moves smoothly with WASD, can't leave screen
 
 **Step 1.4: Basic Box Spawning**
-- [ ] Create boxes array
-- [ ] Add spawnBox() function (brown 32x32 rectangle)
-- [ ] Set timer to spawn box every 5 seconds at (50, 300)
-- [ ] Add simple ID labels to boxes
-- [ ] Add box limit: maximum 100 boxes on screen (stop spawning when limit reached)
-- [ ] Test: Boxes appear every 5 seconds on left side, stops at 100 boxes
+- [x] Create boxes array
+- [x] Add spawnBox() function (brown 32x32 rectangle)
+- [x] Set timer to spawn box every 5 seconds at (50, 300)
+- [x] Add simple ID labels to boxes
+- [x] Add box limit: maximum 100 boxes on screen (stop spawning when limit reached)
+- [x] Test: Boxes appear every 5 seconds on left side, stops at 100 boxes
 
 **Step 1.5: Pick Up/Drop Mechanics**
-- [ ] Add E key handler for interaction
-- [ ] Implement distance-based collision detection (< 50px)
-- [ ] Create pickupBox() function (remove from world, store in inventory)
-- [ ] Show carried box as small rectangle following player
-- [ ] Add Q key handler for dropBox()
-- [ ] Test: Can pick up boxes with E, drop with Q
+- [x] Add E key handler for interaction
+- [x] Implement distance-based collision detection (< 50px)
+- [x] Create pickupBox() function (remove from world, store in inventory)
+- [x] Show carried box as small rectangle following player
+- [x] Add Q key handler for dropBox()
+- [x] Test: Can pick up boxes with E, drop with Q
 
 ## Phase 2: Core Game Loop
 
 **Step 2.1: IRS Machine**
-- [ ] Add gray 64x48 rectangle at (650, 300) with "IRS MACHINE" label
-- [ ] Add interaction when player with box approaches machine
-- [ ] Create processBox() function with 3-second timer
-- [ ] Show "PROCESSING..." status during timer
-- [ ] Generate random result (0 or 1) after 3 seconds
-- [ ] Change box color (green=1, red=0) and show result number
-- [ ] Test: Player can submit boxes, see processing, get results
+- [x] Add gray 64x48 rectangle at (650, 300) with "IRS MACHINE" label
+- [x] Add interaction when player with box approaches machine
+- [x] Create processBox() function with 3-second timer
+- [x] Show "PROCESSING..." status during timer
+- [x] Generate random result (0 or 1) after 3 seconds
+- [x] Change box color (green=1, red=0) and show result number
+- [x] Test: Player can submit boxes, see processing, get results
 
 **Step 2.2: TIN Data Generation**
-- [ ] Add tin property to each box (9-digit string)
-- [ ] Generate random TINs for each box
-- [ ] Create list of obviously bad TINs: 000000000, 111111111, 999999999, 123456789
-- [ ] Create simple TIN validation logic:
+- [x] Add tin property to each box (9-digit string)
+- [x] Generate random TINs for each box
+- [x] Create list of obviously bad TINs: 000000000, 111111111, 999999999, 123456789
+- [x] Create simple TIN validation logic:
   - Obviously bad TINs → always return 0 (invalid)
   - Other TINs → 50% chance of being valid (random)
-- [ ] Test: Obviously bad TINs always fail, others are random 50/50
+- [x] Test: Obviously bad TINs always fail, others are random 50/50
 
 **Step 2.3: Result Return Station**
-- [ ] Add blue 64x48 rectangle at (650, 450) with "RETURN RESULTS" label
-- [ ] Allow player to submit processed boxes (with 0 or 1 results)
-- [ ] Check if player's result matches actual TIN validity
-- [ ] Test: Player can return processed boxes to get payment
+- [x] Add blue 64x48 rectangle at (650, 450) with "RETURN RESULTS" label
+- [x] Allow player to submit processed boxes (with 0 or 1 results)
+- [x] Check if player's result matches actual TIN validity
+- [x] Test: Player can return processed boxes to get payment
 
 **Step 2.4: 0-Card Shortcut System**
-- [ ] Add SPACE key handler for "Use 0-card" 
-- [ ] When player presses SPACE while carrying box, automatically assign result=0
-- [ ] Mark box as "assigned via SPACE" (track how result was assigned)
-- [ ] Change box color to red and show "0" label (bypassing IRS machine)
-- [ ] Add SPACE toggle: if box already has 0-result from SPACE, pressing SPACE again resets to no result
-- [ ] Reset functionality ONLY works for SPACE-assigned results (not IRS machine results)
-- [ ] Player can then submit processed box directly to Return Station
-- [ ] Test: Player can assign 0-card with SPACE, toggle it off with SPACE again, but cannot reset IRS results
+- [x] Add SPACE key handler for "Use 0-card" 
+- [x] When player presses SPACE while carrying box, automatically assign result=0
+- [x] Mark box as "assigned via SPACE" (track how result was assigned)
+- [x] Change box color to red and show "0" label (bypassing IRS machine)
+- [x] Add SPACE toggle: if box already has 0-result from SPACE, pressing SPACE again resets to no result
+- [x] Reset functionality ONLY works for SPACE-assigned results (not IRS machine results)
+- [x] Player can then submit processed box directly to Return Station
+- [x] Test: Player can assign 0-card with SPACE, toggle it off with SPACE again, but cannot reset IRS results
 
-**Step 2.5: Money System**
-- [ ] Add money variable (start at $0)
-- [ ] Add money display in top-left corner
-- [ ] Pay $10 for correct results, $0 for wrong results
-- [ ] Show payment feedback (+$10 or +$0)
-- [ ] Test: Money increases only for correct submissions
+**Step 3.1: Timer and Difficulty**
+- [x] Add 30-minute game timer (display in top-right)
+- [x] Increase box spawn rate over time (start 5s, decrease to 2s minimum)
+- [x] Decrease IRS processing time over time (start 3s, decrease to 1s minimum)
+- [x] Add box expiration system based on game pace
+- [x] Test: Game gets progressively harder over time
 
-**Step 2.6: TIN Labels**
-- [ ] Show TIN number on box labels (small text above each box)
-- [ ] Test: Each box displays its TIN number clearly
+### ✅ COMPLETED
+**Step 3.2: Level System**
+- [x] Add level variable (start at 0 = Junior, removed Intern)
+- [x] Define promotion thresholds: Junior($0), Mid($500), Senior($1200), Architect($2500), CEO($5000)
+- [x] Display current level in top-center
+- [x] Add level buffs: Junior(+speed), Mid(+carry 2 boxes +speed), Senior(+IRS slots +speed), Architect(+pre-validated boxes), CEO(+carry 3 boxes +more speed)
+- [x] Multi-box carrying system implemented
+- [x] IRS slots system implemented (Senior: 2 slots, CEO: 3 slots)
+- [x] Test: Player can earn promotions and get buffs
+
+### 📋 NEXT STEPS (In Order)
+
+**Step 2.6: TIN Labels** (ALREADY IMPLEMENTED - SKIP)
+- TIN numbers already shown on box labels
+
+## Phase 3: Game Progression
+
+**Step 3.1: Timer and Difficulty**
+- [ ] Add 30-minute game timer (display in top-right)
+- [ ] Increase box spawn rate over time (start 5s, decrease to 2s minimum)
+- [ ] Decrease IRS processing time over time (start 3s, decrease to 1s minimum)
+- [ ] Test: Game gets progressively harder over time
+
+**Step 3.2: Level System**
+- [ ] Add level variable (start at 0 = Intern)
+- [ ] Define promotion thresholds: Junior($500), Mid($1200), Senior($2500), Architect($5000), CEO($10000)
+- [ ] Display current level in top-center
+- [ ] Add level buffs: Junior(+speed), Mid(+carry 2 boxes), Senior(+IRS slots)
+- [ ] Test: Player can earn promotions and get buffs
 
 ## Phase 3: Game Progression
 
@@ -139,8 +160,9 @@
 └── TODO.md         # This file
 ```
 
-## Current Status: WAITING FOR CONFIRMATION
-Ready to implement Step 1.1: Basic HTML + Phaser Setup
+## Current Status: READY FOR STEP 3.3
+Steps 1.1-3.2 COMPLETED: Core game + Timer/Difficulty + Level System! Players can earn promotions (Junior → Mid → Senior → Architect → CEO) with buffs including multi-box carrying, IRS processing slots, and pre-validated boxes. All systems working!
+Ready to implement Step 3.3: Happiness System
 
 ---
 *Update this file after each completed step*
