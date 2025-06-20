@@ -34,9 +34,41 @@ let spaceCardIndex = 0; // Track which box to process next with SPACE
 let gameIsPaused = false; // Track pause state
 let pausedTime = 0; // Track how long game has been paused
 let bribeIndex = 0; // Track which processing box to bribe next
+let electionCount = 0; // Track number of elections held
+let nextElectionTime = 30000; // 30 seconds in milliseconds
+let isElectionActive = false; // Track if election is currently happening
 
 // List of obviously bad TINs that should always be invalid
 const badTINs = ['000000000', '111111111', '999999999', '123456789'];
+
+// Election candidates with their effects
+const candidates = [
+    {
+        name: "Speed Sally",
+        description: "Faster IRS processing",
+        effect: "processingSpeed",
+        value: 0.7 // 30% faster processing (multiply by 0.7)
+    },
+    {
+        name: "Money Mike", 
+        description: "Higher payments",
+        effect: "paymentBonus",
+        value: 1.5 // 50% more money (multiply by 1.5)
+    },
+    {
+        name: "Chill Charlie",
+        description: "Slower mood loss",
+        effect: "moodProtection", 
+        value: 0.5 // 50% less mood loss (multiply by 0.5)
+    }
+];
+
+// Current election effects
+let activeElectionEffects = {
+    processingSpeed: 1.0,
+    paymentBonus: 1.0,
+    moodProtection: 1.0
+};
 
 // Level system (mood-based progression)
 const levels = [
@@ -89,7 +121,7 @@ function updateHappiness(change) {
     if (change > 0) {
         actualChange = change * currentLevel.moodGainRate; // Positive changes get harder at higher levels
     } else if (change < 0) {
-        actualChange = change * currentLevel.moodLossRate; // Negative changes get worse at higher levels
+        actualChange = change * currentLevel.moodLossRate * activeElectionEffects.moodProtection; // Apply election mood protection to negative changes
     }
     
     happiness = Math.max(-100, Math.min(100, happiness + actualChange));
@@ -121,6 +153,232 @@ function updateHappiness(change) {
     console.log(`Happiness changed by ${actualChange.toFixed(1)} (from ${change}), now at ${happiness.toFixed(1)}`);
 }
 
+// Function to start an election
+function startElection() {
+    if (isElectionActive) return; // Already in election
+    
+    isElectionActive = true;
+    electionCount++;
+    
+    // Pause the game during election
+    gameIsPaused = true;
+    
+    console.log(`ELECTION #${electionCount} STARTING! Game paused for voting.`);
+    
+    // Show election UI (we'll create this)
+    showElectionUI();
+}
+
+// Function to show election UI
+function showElectionUI() {
+    const scene = game.scene.scenes[0];
+    
+    // Create election background
+    const electionBg = scene.add.rectangle(480, 360, 600, 400, 0x000000, 0.8);
+    electionBg.setDepth(2000);
+    
+    // Election title
+    const title = scene.add.text(480, 200, `ELECTION #${electionCount}`, {
+        fontSize: '32px',
+        fill: '#ffffff',
+        fontFamily: 'Arial',
+        align: 'center'
+    }).setOrigin(0.5).setDepth(2001);
+    
+    // Instructions
+    const instructions = scene.add.text(480, 240, 'Press 1, 2, or 3 to vote:', {
+        fontSize: '18px',
+        fill: '#ffff00',
+        fontFamily: 'Arial',
+        align: 'center'
+    }).setOrigin(0.5).setDepth(2001);
+    
+    // Store UI elements for cleanup
+    scene.electionUI = [electionBg, title, instructions];
+    
+    // Candidate options
+    for (let i = 0; i < candidates.length; i++) {
+        const candidate = candidates[i];
+        const y = 290 + (i * 60);
+        
+        // Candidate number and name
+        const candidateText = scene.add.text(480, y, `${i + 1}. ${candidate.name}`, {
+            fontSize: '20px',
+            fill: '#00ff00',
+            fontFamily: 'Arial',
+            align: 'center'
+        }).setOrigin(0.5).setDepth(2001);
+        
+        // Candidate description
+        const descText = scene.add.text(480, y + 20, candidate.description, {
+            fontSize: '14px',
+            fill: '#cccccc',
+            fontFamily: 'Arial',
+            align: 'center'
+        }).setOrigin(0.5).setDepth(2001);
+        
+        // Add candidate text elements to cleanup list
+        scene.electionUI.push(candidateText, descText);
+    }
+}
+
+// Function to vote for a candidate
+function vote(candidateIndex) {
+    if (!isElectionActive) return;
+    if (candidateIndex < 0 || candidateIndex >= candidates.length) return;
+    
+    const votedCandidate = candidates[candidateIndex];
+    console.log(`You voted for ${votedCandidate.name}.`);
+    
+    // Calculate election results with weighted chances
+    // Base chance: 33.33% each (1/3)
+    // Player's vote adds 20% to their candidate's chance
+    let chances = [33.33, 33.33, 33.33]; // Base chances
+    chances[candidateIndex] += 20; // Add 20% to voted candidate
+    
+    // Normalize to ensure total is 100%
+    const total = chances.reduce((sum, chance) => sum + chance, 0);
+    chances = chances.map(chance => (chance / total) * 100);
+    
+    // Determine winner based on weighted random selection
+    const random = Math.random() * 100;
+    let cumulative = 0;
+    let winnerIndex = 0;
+    
+    for (let i = 0; i < chances.length; i++) {
+        cumulative += chances[i];
+        if (random <= cumulative) {
+            winnerIndex = i;
+            break;
+        }
+    }
+    
+    const winner = candidates[winnerIndex];
+    console.log(`Election result: ${winner.name} won! (You voted for ${votedCandidate.name})`);
+    console.log(`Final chances were: ${chances.map((c, i) => `${candidates[i].name}: ${c.toFixed(1)}%`).join(', ')}`);
+    
+    // Apply the winner's effects
+    applyElectionEffects(winner);
+    
+    // Close election voting UI and show results
+    closeElectionVoting();
+    showElectionResults(winner, votedCandidate);
+    
+    // Schedule next election
+    nextElectionTime = (Date.now() - gameStartTime - pausedTime) + 30000; // 30 seconds from now
+}
+
+// Function to apply election effects
+function applyElectionEffects(winner) {
+    // Reset all effects to default
+    activeElectionEffects = {
+        processingSpeed: 1.0,
+        paymentBonus: 1.0,
+        moodProtection: 1.0
+    };
+    
+    // Apply winner's effect
+    activeElectionEffects[winner.effect] = winner.value;
+    
+    console.log(`Election effects applied: ${winner.effect} = ${winner.value}`);
+    console.log(`Current effects: Processing Speed x${activeElectionEffects.processingSpeed}, Payment Bonus x${activeElectionEffects.paymentBonus}, Mood Protection x${activeElectionEffects.moodProtection}`);
+}
+
+// Function to close election voting UI only
+function closeElectionVoting() {
+    const scene = game.scene.scenes[0];
+    if (scene.electionUI) {
+        scene.electionUI.forEach(element => element.destroy());
+        scene.electionUI = null;
+    }
+}
+
+// Function to show election results
+function showElectionResults(winner, votedCandidate) {
+    const scene = game.scene.scenes[0];
+    
+    // Create results background
+    const resultsBg = scene.add.rectangle(480, 360, 600, 350, 0x000000, 0.9);
+    resultsBg.setDepth(2000);
+    
+    // Results title
+    const title = scene.add.text(480, 260, `ELECTION #${electionCount} RESULTS`, {
+        fontSize: '32px',
+        fill: '#ffffff',
+        fontFamily: 'Arial',
+        align: 'center'
+    }).setOrigin(0.5).setDepth(2001);
+    
+    // Show who player voted for
+    const voteText = scene.add.text(480, 300, `You voted for: ${votedCandidate.name}`, {
+        fontSize: '18px',
+        fill: '#cccccc',
+        fontFamily: 'Arial',
+        align: 'center'
+    }).setOrigin(0.5).setDepth(2001);
+    
+    // Winner announcement with color based on if player's choice won
+    const winnerColor = winner === votedCandidate ? '#00ff00' : '#ff8800';
+    const winnerText = scene.add.text(480, 340, `${winner.name} WINS!`, {
+        fontSize: '28px',
+        fill: winnerColor,
+        fontFamily: 'Arial',
+        align: 'center'
+    }).setOrigin(0.5).setDepth(2001);
+    
+    // Effect description
+    const effectText = scene.add.text(480, 380, winner.description, {
+        fontSize: '18px',
+        fill: '#ffff00',
+        fontFamily: 'Arial',
+        align: 'center'
+    }).setOrigin(0.5).setDepth(2001);
+    
+    // Effect details
+    let effectDetails = "";
+    if (winner.effect === "processingSpeed") {
+        effectDetails = `IRS processing is now ${Math.round((1 - winner.value) * 100)}% faster`;
+    } else if (winner.effect === "paymentBonus") {
+        effectDetails = `Payments increased by ${Math.round((winner.value - 1) * 100)}%`;
+    } else if (winner.effect === "moodProtection") {
+        effectDetails = `Mood loss reduced by ${Math.round((1 - winner.value) * 100)}%`;
+    }
+    
+    const detailsText = scene.add.text(480, 410, effectDetails, {
+        fontSize: '16px',
+        fill: '#cccccc',
+        fontFamily: 'Arial',
+        align: 'center'
+    }).setOrigin(0.5).setDepth(2001);
+    
+    // Instructions
+    const instructions = scene.add.text(480, 450, 'Press P to continue', {
+        fontSize: '18px',
+        fill: '#ffffff',
+        fontFamily: 'Arial',
+        align: 'center'
+    }).setOrigin(0.5).setDepth(2001);
+    
+    // Store results UI elements
+    scene.electionResultsUI = [resultsBg, title, voteText, winnerText, effectText, detailsText, instructions];
+}
+
+// Function to close election completely
+function closeElection() {
+    isElectionActive = false;
+    
+    // Resume the game after election
+    gameIsPaused = false;
+    
+    const scene = game.scene.scenes[0];
+    if (scene.electionResultsUI) {
+        scene.electionResultsUI.forEach(element => element.destroy());
+        scene.electionResultsUI = null;
+    }
+    
+    console.log("Election ended. Game resumed.");
+}
+
 // Removed happiness multiplier - mood no longer affects payment
 
 // Function to format time display (MM:SS)
@@ -147,7 +405,8 @@ function getSpawnDelay() {
 // Function to get current processing time
 function getProcessingTime() {
     const difficulty = getDifficulty();
-    return Math.max(2000, 5000 - (difficulty * 3000)); // 5s to 2s
+    const baseTime = Math.max(2000, 5000 - (difficulty * 3000)); // 5s to 2s
+    return baseTime * activeElectionEffects.processingSpeed; // Apply election effect
 }
 
 // Function to get box expiration time (adaptive based on game pace)
@@ -394,6 +653,10 @@ function create() {
     keys.space = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     keys.p = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P);
     keys.b = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.B);
+    keys.one = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE);
+    keys.two = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO);
+    keys.three = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE);
+    keys.t = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.T); // For testing elections
     
     // Set up dynamic box spawning timer (updates every second)
     this.time.addEvent({
@@ -682,6 +945,9 @@ function submitBox() {
         else if (level === 1) payment = 500; // Mid gets $500  
         else if (level >= 2) payment = 1000; // Senior+ gets $1000
         
+        // Apply election payment bonus effect
+        payment = Math.round(payment * activeElectionEffects.paymentBonus);
+        
         money += payment;
         updateHappiness(2); // Increase happiness for correct results
         console.log(`CORRECT! Box #${processedBox.id} TIN: ${processedBox.tin} - Player: ${playerResult}, Correct: ${correctResult}. Paid $${payment}. Mood +2.`);
@@ -727,6 +993,9 @@ function submitAllBoxes() {
             if (level === 0) payment = 100; // Junior gets $100
             else if (level === 1) payment = 500; // Mid gets $500  
             else if (level >= 2) payment = 1000; // Senior+ gets $1000
+            
+            // Apply election payment bonus effect
+            payment = Math.round(payment * activeElectionEffects.paymentBonus);
             
             money += payment;
             totalEarned += payment;
@@ -943,8 +1212,15 @@ function bribeIRS() {
 
 // Update function - main game loop
 function update() {
-    // Handle pause toggle
+    // Handle pause toggle and election results
     if (Phaser.Input.Keyboard.JustDown(keys.p)) {
+        // Check if we're showing election results
+        if (this.electionResultsUI) {
+            closeElection();
+            return;
+        }
+        
+        // Normal pause toggle
         gameIsPaused = !gameIsPaused;
         if (gameIsPaused) {
             this.pauseStartTime = Date.now();
@@ -955,8 +1231,8 @@ function update() {
         }
     }
     
-    // Skip all game logic if paused
-    if (gameIsPaused) {
+    // Skip all game logic if paused (except during elections and results)
+    if (gameIsPaused && !isElectionActive && !this.electionResultsUI) {
         // Show pause indicator
         if (!this.pauseText) {
             this.pauseText = this.add.text(480, 360, 'PAUSED\nPress P to Resume', {
@@ -975,6 +1251,29 @@ function update() {
         if (this.pauseText) {
             this.pauseText.destroy();
             this.pauseText = null;
+        }
+    }
+    
+    // If showing election results, skip other game logic
+    if (this.electionResultsUI) {
+        return;
+    }
+    
+    // Handle voting keys (1, 2, 3) - allow during elections even when paused
+    if (isElectionActive) {
+        if (Phaser.Input.Keyboard.JustDown(keys.one)) {
+            vote(0);
+        }
+        if (Phaser.Input.Keyboard.JustDown(keys.two)) {
+            vote(1);
+        }
+        if (Phaser.Input.Keyboard.JustDown(keys.three)) {
+            vote(2);
+        }
+        
+        // If game is paused for election, skip other game logic
+        if (gameIsPaused) {
+            return;
         }
     }
     
@@ -1044,6 +1343,13 @@ function update() {
         bribeIRS();
     }
     
+    // Handle T key for testing elections (dev shortcut)
+    if (Phaser.Input.Keyboard.JustDown(keys.t) && !isElectionActive) {
+        console.log("DEBUG: Triggering test election");
+        startElection();
+    }
+    
+    
     // Update carried boxes position (show as small banners following player)
     for (let i = 0; i < carriedBoxes.length; i++) {
         const box = carriedBoxes[i];
@@ -1066,6 +1372,12 @@ function update() {
     // Update game timer (show elapsed time excluding paused time)
     const elapsedSeconds = Math.floor((Date.now() - gameStartTime - pausedTime) / 1000);
     document.getElementById('timer-display').textContent = formatTime(elapsedSeconds);
+    
+    // Check for election time
+    const currentGameTime = Date.now() - gameStartTime - pausedTime;
+    if (!isElectionActive && currentGameTime >= nextElectionTime) {
+        startElection();
+    }
     
     // Check for expired boxes
     const expirationTime = getBoxExpirationTime();
