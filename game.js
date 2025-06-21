@@ -466,6 +466,9 @@ function preload() {
     // Load banner image for TIN boxes
     this.load.image('banner', 'assets/images/objects/banner_modern.png');
     
+    // Load background music
+    this.load.audio('bgMusic', 'assets/audio/music/Travis_eulogy.mp3');
+    
     // Add error event listeners
     this.load.on('loaderror', function (event) {
         console.log('Load error:', event);
@@ -641,6 +644,24 @@ function create() {
     
     // Initialize bribe display
     updateBribeDisplay();
+    
+    // Create and start background music
+    this.bgMusic = this.sound.add('bgMusic', { 
+        volume: 0.5, 
+        loop: true 
+    });
+    this.bgMusic.play();
+    
+    // Set up page visibility API to pause/resume music when tab is active/inactive
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            // Tab is now hidden - pause music
+            this.bgMusic.pause();
+        } else {
+            // Tab is now visible - resume music
+            this.bgMusic.resume();
+        }
+    });
     
     // Set up WASD key handlers
     keys = this.input.keyboard.createCursorKeys();
