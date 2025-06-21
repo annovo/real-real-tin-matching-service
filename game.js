@@ -4,7 +4,7 @@
 // Game configuration
 const config = {
     type: Phaser.AUTO,
-    width: 960,
+    width: 1152,
     height: 720,
     parent: 'game-container',
     backgroundColor: '#34495e',
@@ -19,6 +19,13 @@ const config = {
 let game;
 let player;
 let keys;
+
+// Character animation state
+let playerState = 'idle'; // 'idle', 'walking-left', 'walking-right'
+let lastDirection = 'left'; // 'left', 'right' - default to left
+let walkFrame = 1; // 1 or 2 for walk animation frames
+let animationTimer = 0; // Timer for animation frame switching
+const ANIMATION_SPEED = 300; // milliseconds between walk frames
 let boxes = [];
 let boxIdCounter = 1;
 let carriedBoxes = [];
@@ -82,6 +89,19 @@ const levels = [
 // Function to get current level info
 function getCurrentLevel() {
     return levels[level];
+}
+
+// Function to update player sprite based on current state
+function updatePlayerSprite() {
+    let spriteKey = 'playerIdle'; // Default to idle
+    
+    if (playerState === 'walking-left') {
+        spriteKey = walkFrame === 1 ? 'playerWalk1Left' : 'playerWalk2Left';
+    } else if (playerState === 'walking-right') {
+        spriteKey = walkFrame === 1 ? 'playerWalk1Right' : 'playerWalk2Right';
+    }
+    
+    player.setTexture(spriteKey);
 }
 
 // Function to check for promotion
@@ -463,8 +483,36 @@ function preload() {
         spacing: 1      // 1px between tiles
     });
     
-    // Load banner image for TIN boxes
-    this.load.image('banner', 'assets/images/objects/banner_modern.png');
+    // Load TIN paper image for TIN boxes
+    this.load.image('tinPaper', 'assets/images/objects/tin-paper.png');
+    
+    // Load IRS machine image
+    this.load.image('irsMachine', 'assets/images/objects/irs-machine.png');
+    
+    // Load results station image
+    this.load.image('resultsStation', 'assets/images/objects/results.png');
+    
+    // Load belt images
+    this.load.image('beltLeft', 'assets/images/objects/belt-left.png');
+    this.load.image('beltMiddle', 'assets/images/objects/belt-middle.png');
+    this.load.image('beltRight', 'assets/images/objects/belt-right.png');
+    
+    // Load floor tile
+    this.load.image('floorTile', 'assets/images/tiles/floor-tile.png');
+    
+    // Load wall tiles
+    this.load.image('wallTileTop', 'assets/images/backgrounds/wall-tile-1.png');
+    this.load.image('wallTileBottom', 'assets/images/backgrounds/wall-tile-1.png');
+    this.load.image('wallTileLeft', 'assets/images/backgrounds/wall-vertical.png');
+    this.load.image('wallTileRight', 'assets/images/backgrounds/wall-vertical.png');
+    this.load.image('wallTileLeftTopCorner', 'assets/images/backgrounds/wall-tile-left-top-corner.png');
+    
+    // Load character sprites
+    this.load.image('playerIdle', 'assets/images/character/green/front-facing.png');
+    this.load.image('playerWalk1Left', 'assets/images/character/green/walk-1-left.png');
+    this.load.image('playerWalk2Left', 'assets/images/character/green/walk-2-left.png');
+    this.load.image('playerWalk1Right', 'assets/images/character/green/walk-1-right.png');
+    this.load.image('playerWalk2Right', 'assets/images/character/green/walk-2-right.png');
     
     // Load background music
     this.load.audio('bgMusic', 'assets/audio/music/Travis_eulogy.mp3');
@@ -493,9 +541,9 @@ function create() {
         updateBribeDisplay(); // Update bribe rate display for debug level
     }
     // Create tiled background with proper borders
-    const tileSize = 16; // 16x16 tiles
-    const tilesX = Math.ceil(960 / tileSize); // Number of tiles needed horizontally (60 tiles)
-    const tilesY = Math.ceil(720 / tileSize); // Number of tiles needed vertically (45 tiles)
+    const tileSize = 80; // 80x80 tiles (5x bigger)
+    const tilesX = Math.ceil(1152 / tileSize); // Number of tiles needed horizontally
+    const tilesY = Math.ceil(720 / tileSize); // Number of tiles needed vertically
     
     // Tile indices (converted from 1-based row/col to 0-based array index)
     // Formula: index = (row - 1) * 27 + (col - 1)
@@ -518,84 +566,79 @@ function create() {
         // First pass: Place floor tiles everywhere
         for (let x = 0; x < tilesX; x++) {
             for (let y = 0; y < tilesY; y++) {
-                this.add.image(x * 16 + 8, y * 16 + 8, 'tiles', tiles.fill);
+                this.add.image(x * tileSize + tileSize/2, y * tileSize + tileSize/2, 'floorTile').setDisplaySize(80, 80);
             }
         }
         
-        // Second pass: Place border tiles on top
-        for (let x = 0; x < tilesX; x++) {
-            for (let y = 0; y < tilesY; y++) {
-                let tileIndex = null;
-                
-                // Determine which border tile to use based on position
-                if (x === 0 && y === 0) {
-                    // Top-left corner
-                    tileIndex = tiles.topLeft;
-                } else if (x === tilesX - 1 && y === 0) {
-                    // Top-right corner
-                    tileIndex = tiles.topRight;
-                } else if (x === tilesX - 1 && y === tilesY - 1) {
-                    // Bottom-right corner
-                    tileIndex = tiles.bottomRight;
-                } else if (x === 0 && y === tilesY - 1) {
-                    // Bottom-left corner
-                    tileIndex = tiles.bottomLeft;
-                } else if (y === 0) {
-                    // Top edge
-                    tileIndex = tiles.topEdge;
-                } else if (x === tilesX - 1) {
-                    // Right edge
-                    tileIndex = tiles.rightEdge;
-                } else if (y === tilesY - 1) {
-                    // Bottom edge
-                    tileIndex = tiles.bottomEdge;
-                } else if (x === 0) {
-                    // Left edge
-                    tileIndex = tiles.leftEdge;
-                }
-                
-                // Only place border tiles (skip interior)
-                if (tileIndex !== null) {
-                    this.add.image(x * 16 + 8, y * 16 + 8, 'tiles', tileIndex);
-                }
+        // Add left top corner piece
+        const cornerTile = this.add.image(0, 0, 'wallTileTop');
+        cornerTile.setScale(0.5); // 2x smaller, same as top tiles
+        
+        // Add top edge border with wall tiles (smaller and connected, skip corner area)
+        const smallTileSpacing = 20; // Even smaller spacing to connect tiles
+        const smallTilesX = Math.ceil(1152 / smallTileSpacing) + 2; // Extra tiles to ensure coverage
+        for (let x = 0; x < smallTilesX; x++) {
+            const xPos = x * smallTileSpacing + 10;
+            // Skip the corner area (first 20px to avoid overlap with scaled corner)
+            if (xPos > 20) {
+                const topTile = this.add.image(xPos, 0, 'wallTileTop');
+                topTile.setScale(0.5); // 2x smaller
             }
         }
         
-        // Create vertical table for TIN boxes (positioned 32px away from border tiles)
-        const tableStartX = 2; // Skip border tile (x=0) + 1 tile gap + 32px gap
-        const tableStartY = 2; // Skip border tile (y=0) + 1 tile gap + 32px gap
-        const tableLength = 18; // Longer table while maintaining 32px gaps
-        
-        // Table tile indices
-        const tableTiles = {
-            top: (1 - 1) * 27 + (6 - 1),    // Row 1, Col 6
-            middle: (2 - 1) * 27 + (6 - 1), // Row 2, Col 6
-            bottom: (3 - 1) * 27 + (6 - 1)  // Row 3, Col 6
-        };
-        
-        // Store table position for box spawning
-        this.tableX = tableStartX * 16 + 8 + 32 + 20;
-        this.tableY = (tableStartY + tableLength - 1) * 16 + 8 + 32; // Bottom of table
-        this.tableTopY = (tableStartY) * 16 + 8 + 32; // Top of table
-        
-        for (let y = 0; y < tableLength; y++) {
-            let tileToUse;
-            
-            if (y === 0) {
-                // First tile - top
-                tileToUse = tableTiles.top;
-            } else if (y === tableLength - 1) {
-                // Last tile - bottom
-                tileToUse = tableTiles.bottom;
-            } else {
-                // Middle tiles - 10 tiles
-                tileToUse = tableTiles.middle;
-            }
-            
-            const tableTile = this.add.image(tableStartX * 16 + 8 + 32 + 20, (tableStartY + y) * 16 + 8 + 32, 'tiles', tileToUse);
-            tableTile.setScale(5);
-            tableTile.texture.setFilter(Phaser.Textures.NEAREST); // Crisp pixel art scaling
+        // Add bottom edge border with wall tiles (smaller and connected, same as top)
+        for (let x = 0; x < smallTilesX; x++) {
+            const xPos = x * smallTileSpacing + 10;
+            const bottomTile = this.add.image(xPos, 720, 'wallTileBottom');
+            bottomTile.setScale(0.5); // 2x smaller, same as top tiles
         }
+        
+        // Add left edge border with wall tiles (start right after corner)
+        const verticalTileSpacing = 20; // Same spacing as horizontal tiles
+        const verticalTilesY = Math.ceil(720 / verticalTileSpacing) + 2;
+        for (let y = 1; y < verticalTilesY; y++) { // Start from y=1 to connect to corner
+            const yPos = y * verticalTileSpacing;
+            const leftTile = this.add.image(0, yPos, 'wallTileLeft');
+            leftTile.setScale(0.5); // 2x smaller to match other tiles
+        }
+        
+        // Add right edge border with wall tiles (smaller spacing)
+        for (let y = 0; y < verticalTilesY; y++) {
+            const yPos = y * verticalTileSpacing + 10;
+            const rightTile = this.add.image(1152, yPos, 'wallTileRight');
+            rightTile.setScale(0.5); // 2x smaller to match other tiles
+        }
+        
+        
+        // Create horizontal belt for TIN boxes
+        const beltStartX = 200; // Start position from left
+        const beltY = 200; // Y position for belt
+        const beltScale = 0.5; // Scale for belt pieces
+        
+        // Create belt: left + 4 middle + right
+        const beltLeft = this.add.image(beltStartX, beltY, 'beltLeft');
+        beltLeft.setScale(beltScale);
+        
+        const beltMiddle1 = this.add.image(beltStartX + 80, beltY, 'beltMiddle');
+        beltMiddle1.setScale(beltScale);
+        
+        const beltMiddle2 = this.add.image(beltStartX + 160, beltY, 'beltMiddle');
+        beltMiddle2.setScale(beltScale);
+        
+        const beltMiddle3 = this.add.image(beltStartX + 240, beltY, 'beltMiddle');
+        beltMiddle3.setScale(beltScale);
+        
+        const beltMiddle4 = this.add.image(beltStartX + 320, beltY, 'beltMiddle');
+        beltMiddle4.setScale(beltScale);
+        
+        const beltRight = this.add.image(beltStartX + 400, beltY, 'beltRight');
+        beltRight.setScale(beltScale);
+        
+        // Store belt position for box spawning (center of belt)
+        this.beltX = beltStartX + 200; // Center of the belt
+        this.beltY = beltY;
+        this.beltLeftX = beltStartX;
+        this.beltRightX = beltStartX + 400;
         
         console.log('Bordered tilemap and table created successfully');
     } else {
@@ -605,36 +648,18 @@ function create() {
     }
     
     
-    // Create player - dark green 57x57 rectangle at center (480, 360)
-    player = this.add.rectangle(480, 360, 57, 57, 0x228B22);
+    // Create player - character sprite at center (576, 360) 
+    player = this.add.image(576, 360, 'playerIdle');
+    player.setScale(0.25); // Scale down the character sprite (2x smaller)
     
-    // Create IRS Machine - gray 154x116 rectangle at (780, 360)
-    irsMachine = this.add.rectangle(780, 360, 154, 116, 0x666666);
+    // Create IRS Machine - image at (1000, 300)
+    irsMachine = this.add.image(1000, 300, 'irsMachine');
+    irsMachine.setScale(0.2); // 5x smaller
     
-    // Add IRS Machine label
-    this.add.text(780, 324, 'IRS MACHINE', {
-        fontSize: '14px',
-        fill: '#ffffff',
-        fontFamily: 'Arial'
-    }).setOrigin(0.5);
     
-    // Add processing status text (initially hidden)
-    processingStatus = this.add.text(780, 396, 'PROCESSING...', {
-        fontSize: '12px',
-        fill: '#ffff00',
-        fontFamily: 'Arial'
-    }).setOrigin(0.5);
-    processingStatus.setVisible(false);
-    
-    // Create Return Station - blue 77x58 rectangle at (420, 660) - bottom of screen
-    returnStation = this.add.rectangle(420, 660, 77, 58, 0x0066cc);
-    
-    // Add Return Station label
-    this.add.text(420, 624, 'RETURN RESULTS', {
-        fontSize: '12px',
-        fill: '#ffffff',
-        fontFamily: 'Arial'
-    }).setOrigin(0.5);
+    // Create Return Station - results image at (420, 660) - bottom of screen
+    returnStation = this.add.image(420, 660, 'resultsStation');
+    returnStation.setScale(0.2); // Scale down the results station to visible size
     
     
     
@@ -705,60 +730,87 @@ function spawnBox() {
         return;
     }
     
-    // Calculate next position on table (stack boxes)
-    const tableX = this.tableX;
-    let spawnY = this.tableY;
+    // Calculate next position on belt (place boxes horizontally)
+    const beltY = this.beltY;
+    let spawnX = this.beltLeftX + 40; // Start slightly right of belt left
     
-    // Find gaps and stack boxes efficiently
-    const boxesOnTable = boxes.filter(b => Math.abs(b.x - tableX) < 50);
+    // Find gaps and place boxes along the belt
+    const boxesOnBelt = boxes.filter(b => Math.abs(b.y - beltY) < 50);
     
-    if (boxesOnTable.length > 0) {
-        // Sort boxes by Y position (bottom to top)
-        boxesOnTable.sort((a, b) => b.y - a.y);
+    if (boxesOnBelt.length > 0) {
+        // Sort boxes by X position (left to right)
+        boxesOnBelt.sort((a, b) => a.x - b.x);
         
         // Look for gaps between boxes (40px spacing)
         let foundGap = false;
-        for (let i = 0; i < boxesOnTable.length - 1; i++) {
-            const currentBox = boxesOnTable[i];
-            const nextBox = boxesOnTable[i + 1];
-            const gapSize = currentBox.y - nextBox.y;
+        for (let i = 0; i < boxesOnBelt.length - 1; i++) {
+            const currentBox = boxesOnBelt[i];
+            const nextBox = boxesOnBelt[i + 1];
+            const gapSize = nextBox.x - currentBox.x;
             
-            // If gap is larger than box height + some buffer, place box there
+            // If gap is larger than box width + some buffer, place box there
             if (gapSize > 80) {
-                spawnY = currentBox.y - 40;
+                spawnX = currentBox.x + 40;
                 foundGap = true;
                 break;
             }
         }
         
-        // If no gap found, check if we can stack on top
+        // If no gap found, check if we can place at the end
         if (!foundGap) {
-            const topBox = boxesOnTable.reduce((highest, box) => box.y < highest.y ? box : highest);
-            const nextY = topBox.y - 40;
+            const rightmostBox = boxesOnBelt.reduce((rightmost, box) => box.x > rightmost.x ? box : rightmost);
+            const nextX = rightmostBox.x + 40;
             
-            // If next position would go above table top, start from bottom again
-            if (nextY < this.tableTopY) {
-                spawnY = this.tableY; // Reset to bottom
+            // If next position would go beyond belt right, start from left again
+            if (nextX > this.beltRightX - 40) {
+                spawnX = this.beltLeftX + 40; // Reset to left
             } else {
-                spawnY = nextY; // Stack above the highest box
+                spawnX = nextX; // Place right of the rightmost box
             }
         }
     }
     
-    // Create banner image at calculated position
-    const box = this.add.image(tableX, spawnY, 'banner');
+    // Create TIN paper image at start of belt (always spawn at left)
+    const startX = this.beltLeftX + 40;
+    const paperY = beltY - 10; // 10px higher than belt
+    const box = this.add.image(startX, paperY, 'tinPaper');
     box.setScale(0.67); // 1.5x smaller (1/1.5 = 0.67)
     
-    // Add TIN number in the middle of the banner
+    // Add TIN number in the middle of the paper
     const boxId = boxIdCounter++;
     const tin = generateRandomTIN();
     const validity = determineTINValidity(tin); // Determine validity at spawn
-    const label = this.add.text(tableX, spawnY, tin, {
+    const label = this.add.text(startX, paperY, tin, {
         fontSize: '16px',
         fill: '#000000',
         fontFamily: 'Arial',
         align: 'center'
     }).setOrigin(0.5);
+    
+    // Animate the paper sliding to the end of the belt
+    const endX = this.beltRightX - 40;
+    const slideTime = 8000; // 8 seconds to traverse the belt
+    
+    this.tweens.add({
+        targets: box,
+        x: endX,
+        duration: slideTime,
+        ease: 'Linear',
+        onComplete: () => {
+            // Stop movement when reaching the end
+            const boxData = boxes.find(b => b.sprite === box);
+            if (boxData) {
+                boxData.isMoving = false;
+            }
+        }
+    });
+    
+    this.tweens.add({
+        targets: label,
+        x: endX,
+        duration: slideTime,
+        ease: 'Linear'
+    });
     
     // Check if this box should be pre-validated (for Architect+)
     let isPreValidated = false;
@@ -773,11 +825,13 @@ function spawnBox() {
         validity: validity, // Store the predetermined validity
         sprite: box,
         label: label,
-        x: tableX,
-        y: spawnY,
+        x: startX,
+        y: paperY,
         spawnTime: Date.now(), // Track when box was created
         preValidated: isPreValidated,
-        isBribed: false // Track if this box has been bribed during processing
+        isBribed: false, // Track if this box has been bribed during processing
+        isMoving: true, // Track if box is sliding on belt
+        endX: endX // Store target position
     };
     
     // If pre-validated, show result immediately
@@ -827,6 +881,15 @@ function pickupBox() {
         const index = boxes.indexOf(nearestBox);
         boxes.splice(index, 1);
         
+        // Stop any belt animation
+        if (nearestBox.isMoving) {
+            nearestBox.isMoving = false;
+            // Stop the tweens
+            const scene = game.scene.scenes[0];
+            scene.tweens.killTweensOf(nearestBox.sprite);
+            scene.tweens.killTweensOf(nearestBox.label);
+        }
+        
         // Hide the box and label
         nearestBox.sprite.setVisible(false);
         nearestBox.label.setVisible(false);
@@ -855,7 +918,7 @@ function dropBox() {
     
     // Show the box and label again
     boxToDrop.sprite.setVisible(true);
-    boxToDrop.sprite.setScale(0.67); // Keep smaller banner size
+    boxToDrop.sprite.setScale(0.67); // Keep smaller size
     boxToDrop.label.setVisible(true);
     boxToDrop.label.setScale(1.0); // Reset to normal size
     
@@ -908,13 +971,10 @@ function completeProcessing(boxToComplete) {
     
     console.log(`Processing complete: Box #${boxToComplete.id} TIN: ${boxToComplete.tin} = ${result}`);
     
-    // Move processed box out of machine (to the right)
-    boxToComplete.sprite.setPosition(irsMachine.x + 60, irsMachine.y + 24);
-    boxToComplete.label.setPosition(irsMachine.x + 60, irsMachine.y + 24); // Center text on banner
+    // Keep processed box in current position (don't move it)
+    // The box stays where it was when processing started
     
     // Add to boxes array so player can pick it up
-    boxToComplete.x = irsMachine.x + 60;
-    boxToComplete.y = irsMachine.y + 24;
     boxes.push(boxToComplete);
     
     // Remove from processing array
@@ -926,13 +986,6 @@ function completeProcessing(boxToComplete) {
         boxToComplete.bribeBorder = null;
     }
     
-    // Update processing status
-    if (processingBoxes.length === 0) {
-        processingStatus.setVisible(false);
-    } else {
-        const maxSlots = getCurrentLevel().irsSlots;
-        processingStatus.setText(`PROCESSING... (${processingBoxes.length}/${maxSlots})`);
-    }
 }
 
 // Function to submit processed box for payment
@@ -1064,11 +1117,15 @@ function processAllBoxes() {
         const slotIndex = processingBoxes.length - 1;
         const yOffset = 24 + (slotIndex * 30);
         boxToProcess.sprite.setPosition(irsMachine.x, irsMachine.y + yOffset);
-        boxToProcess.sprite.setScale(0.67); // Keep smaller banner size
+        boxToProcess.sprite.setScale(0.67); // Keep smaller size
         boxToProcess.sprite.setVisible(true);
-        boxToProcess.label.setPosition(irsMachine.x, irsMachine.y + yOffset); // Center text on banner
+        boxToProcess.label.setPosition(irsMachine.x, irsMachine.y + yOffset); // Center text on paper
         boxToProcess.label.setScale(1.0);
         boxToProcess.label.setVisible(true);
+        
+        // Update box data position
+        boxToProcess.x = irsMachine.x;
+        boxToProcess.y = irsMachine.y + yOffset;
         
         console.log(`Started processing box #${boxToProcess.id} in slot ${slotIndex + 1}/${maxSlots}`);
         
@@ -1082,11 +1139,6 @@ function processAllBoxes() {
         }, processingTime);
     }
     
-    // Show processing status if any boxes are processing
-    if (processingBoxes.length > 0) {
-        processingStatus.setText(`PROCESSING... (${processingBoxes.length}/${maxSlots})`);
-        processingStatus.setVisible(true);
-    }
 }
 
 // Function to use 0-card shortcut
@@ -1303,25 +1355,63 @@ function update() {
     const speedBonus = getCurrentLevel().speedBonus;
     const speed = baseSpeed + speedBonus;
     
+    // Track if player is moving
+    let isMoving = false;
+    let movingLeft = false;
+    let movingRight = false;
+    
     // Check WASD keys and move player
     if (keys.w.isDown) {
         player.y -= speed * this.sys.game.loop.delta / 1000;
+        isMoving = true;
     }
     if (keys.s.isDown) {
         player.y += speed * this.sys.game.loop.delta / 1000;
+        isMoving = true;
     }
     if (keys.a.isDown) {
         player.x -= speed * this.sys.game.loop.delta / 1000;
+        isMoving = true;
+        movingLeft = true;
+        lastDirection = 'left';
     }
     if (keys.d.isDown) {
         player.x += speed * this.sys.game.loop.delta / 1000;
+        isMoving = true;
+        movingRight = true;
+        lastDirection = 'right';
     }
+    
+    // Update player state based on movement
+    if (!isMoving) {
+        playerState = 'idle';
+    } else if (movingLeft) {
+        playerState = 'walking-left';
+    } else if (movingRight) {
+        playerState = 'walking-right';
+    } else {
+        // Moving up/down only - use last direction for walking animation
+        playerState = lastDirection === 'left' ? 'walking-left' : 'walking-right';
+    }
+    
+    // Update animation timer and frame
+    if (isMoving) {
+        animationTimer += this.sys.game.loop.delta;
+        if (animationTimer >= ANIMATION_SPEED) {
+            walkFrame = walkFrame === 1 ? 2 : 1; // Toggle between 1 and 2
+            animationTimer = 0;
+        }
+    }
+    
+    // Update player sprite
+    updatePlayerSprite();
     
     // Keep player within world boundaries, away from border tiles
     // Player is 57x57 (29px radius), borders are 16px wide
     // Left/Right: 45px from edges, Top/Bottom: 53px from edges (extra 8px gap)
-    player.x = Phaser.Math.Clamp(player.x, 45, 960 - 45);
+    player.x = Phaser.Math.Clamp(player.x, 45, 1152 - 45);
     player.y = Phaser.Math.Clamp(player.y, 53, 720 - 53);
+    
     
     // Handle E key for pickup OR processing OR submission
     if (Phaser.Input.Keyboard.JustDown(keys.e)) {
@@ -1387,6 +1477,16 @@ function update() {
     
     // Update box positions for non-physics boxes
     for (let box of boxes) {
+        // If box is moving on belt, sync position with sprite
+        if (box.isMoving) {
+            box.x = box.sprite.x;
+            box.y = box.sprite.y;
+            
+            // Check if box reached the end
+            if (box.x >= box.endX - 5) {
+                box.isMoving = false;
+            }
+        }
         box.label.setPosition(box.x, box.y);
     }
     

@@ -104,7 +104,21 @@
 - [x] Create UI panels for controls and bribe rates
 - [x] Add debug level selection for testing
 
-### 🔄 CURRENT TASK
+### 🔄 CURRENT TASK: Character Replacement System
+
+**Step 4.1: Character Sprite System**
+- [ ] **Load character sprite images** - Add all sprite files to preload function
+  - front-facing.png (idle state)
+  - walk-1-left.png, walk-2-left.png (left walk frames)
+  - walk-right-1.png, walk-right-2.png (right walk frames)
+- [ ] **Add character state tracking** - Create variables for movement state and direction
+- [ ] **Replace player rectangle** - Switch from rectangle to front-facing.png sprite
+- [ ] **Create walking animation system** - Implement frame alternation (walk-1 <-> walk-2)
+- [ ] **Add movement direction detection** - Detect left/right movement in update function
+- [ ] **Implement sprite switching logic** - Change sprites based on movement state
+- [ ] **Add animation timing system** - Control walk frame speed
+- [ ] **Handle state persistence** - Remember last direction when idle, default to left
+- [ ] **Test all animations** - Verify all transitions work properly
 
 ## Phase 4: Advanced Features
 
