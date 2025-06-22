@@ -1,11 +1,128 @@
 // Real-Time TIN Matching Service - Game Logic
 // Phase 1: Basic Foundation
 
+// ===== GAME CONSTANTS =====
+
+// Display/Screen Dimensions
+const GAME_WIDTH = 1152;
+const GAME_HEIGHT = 720;
+const PLAYER_START_X = 576;
+const PLAYER_START_Y = 360;
+
+// Sprite Scales
+const PLAYER_SCALE = 0.25;
+const IRS_MACHINE_SCALE = 0.2;
+const RETURN_STATION_SCALE = 0.2;
+const PUT_HERE_TEXT_SCALE = 0.1;
+const WALL_TILE_SCALE = 0.5;
+const BELT_SCALE = 0.5;
+const TIN_PAPER_SCALE = 0.67;
+const THINKING_DOT_SMALL_SCALE = 0.5;
+const THINKING_DOT_LARGE_SCALE = 0.6;
+const CARRIED_BOX_SCALE = 0.6;
+
+// Timing/Animation Values
+const ANIMATION_SPEED = 300; // milliseconds between walk frames
+const THINKING_DOT_ANIMATION_DELAY = 400;
+const ELECTION_DELAY = 30000; // 30 seconds
+const BOX_SPAWN_CHECK_INTERVAL = 1000;
+const BOX_SLIDE_DURATION = 8000; // 8 seconds
+const BACKGROUND_MUSIC_VOLUME = 0.5;
+const BRIBE_SPEED_MULTIPLIER = 0.2; // 80% faster = 20% of original time
+
+// Distance Thresholds
+const PICKUP_DISTANCE = 60;
+const INTERACTION_DISTANCE = 96;
+const PLAYER_BOUNDARY_MARGIN_X = 45;
+const PLAYER_BOUNDARY_MARGIN_Y = 53;
+
+// Positioning/Layout  
+const TILE_SIZE = 80;
+const WALL_TILE_SPACING = 20;
+const BELT_Y = 200;
+const IRS_MACHINE_X = 1000;
+const IRS_MACHINE_Y = 300;
+const RETURN_STATION_X = 420;
+const RETURN_STATION_Y = 660;
+const PUT_HERE_TEXT_X = 420;
+const PUT_HERE_TEXT_Y = 610;
+const BOX_SPAWN_OFFSET = 40;
+const BOX_GAP_SIZE = 80;
+const PAPER_Y_OFFSET = -10;
+const PROCESSING_SLOT_BASE_Y = 24;
+const PROCESSING_SLOT_SPACING = 30;
+const THINKING_DOTS_Y_OFFSET = -60;
+const THINKING_DOTS_X_START_OFFSET = -25;
+const THINKING_DOTS_SPACING = 20;
+const CARRIED_BOX_X_SPACING = 18;
+const CARRIED_BOX_Y_OFFSET = -24;
+const CARRIED_BOX_BASE_OFFSET = 24;
+
+// Game Balance/Economy
+const INITIAL_ELECTION_TIME = 30000;
+const MAX_HAPPINESS = 100;
+const MIN_HAPPINESS = -100;
+const PROMOTION_THRESHOLD = 100;
+const GAME_OVER_HAPPINESS = -100;
+const VOTE_BONUS_PERCENTAGE = 20;
+const GAME_DURATION_MINUTES = 30;
+const BAD_TIN_GENERATION_CHANCE = 0.3;
+const TIN_VALIDITY_CHANCE = 0.5;
+const MAX_BOXES_LIMIT = 100;
+const PRE_VALIDATION_CHANCE = 0.3;
+const BASE_PLAYER_SPEED = 300;
+const BRIBE_COST_MULTIPLIER_THRESHOLD = 2; // level >= 2
+
+// Payment amounts by level
+const LEVEL_PAYMENTS = [100, 500, 1000];
+
+// Colors (Tint Values)
+const VALID_BOX_TINT = 0x00ff00; // Green
+const INVALID_BOX_TINT = 0xff0000; // Red  
+const ZERO_CARD_TINT = 0xff0000; // Red
+const BRIBE_BORDER_TINT = 0xffff00; // Yellow
+
+// Depth Values
+const FLOOR_DEPTH = 0;
+const STATION_DEPTH = 0.5;
+const PLAYER_DEPTH = 1;
+const PAUSE_TEXT_DEPTH = 1000;
+const ELECTION_UI_BACKGROUND_DEPTH = 2000;
+const ELECTION_UI_TEXT_DEPTH = 2001;
+
+// Font Sizes
+const ELECTION_TITLE_FONT_SIZE = '32px';
+const ELECTION_INSTRUCTIONS_FONT_SIZE = '18px';
+const CANDIDATE_NAME_FONT_SIZE = '20px';
+const CANDIDATE_DESCRIPTION_FONT_SIZE = '14px';
+const RESULTS_TITLE_FONT_SIZE = '32px';
+const VOTE_TEXT_FONT_SIZE = '18px';
+const WINNER_TEXT_FONT_SIZE = '28px';
+const TIN_TEXT_FONT_SIZE = '16px';
+const PAUSE_TEXT_FONT_SIZE = '48px';
+
+// Election UI Layout
+const ELECTION_UI_X = 480;
+const ELECTION_UI_Y = 360;
+const ELECTION_UI_WIDTH = 600;
+const ELECTION_UI_HEIGHT = 400;
+const ELECTION_RESULTS_HEIGHT = 350;
+const ELECTION_TITLE_Y = 200;
+const ELECTION_INSTRUCTIONS_Y = 240;
+const CANDIDATE_START_Y = 290;
+const CANDIDATE_Y_SPACING = 60;
+
+// Processing Time Ranges
+const MIN_SPAWN_DELAY = 2000; // 2 seconds
+const MAX_SPAWN_DELAY = 5000; // 5 seconds
+const MIN_PROCESSING_TIME = 2000; // 2 seconds  
+const MAX_PROCESSING_TIME = 5000; // 5 seconds
+
 // Game configuration
 const config = {
     type: Phaser.AUTO,
-    width: 1152,
-    height: 720,
+    width: GAME_WIDTH,
+    height: GAME_HEIGHT,
     parent: 'game-container',
     backgroundColor: '#34495e',
     scene: {
@@ -25,13 +142,13 @@ let playerState = 'idle'; // 'idle', 'walking-left', 'walking-right'
 let lastDirection = 'left'; // 'left', 'right' - default to left
 let walkFrame = 1; // 1 or 2 for walk animation frames
 let animationTimer = 0; // Timer for animation frame switching
-const ANIMATION_SPEED = 300; // milliseconds between walk frames
 let boxes = [];
 let boxIdCounter = 1;
 let carriedBoxes = [];
 let irsMachine;
 let processingBoxes = [];
 let processingStatus;
+let gameScene; // Reference to the current scene for adding objects
 let returnStation;
 let money = 0;
 let gameStartTime;
@@ -70,11 +187,11 @@ const candidates = [
     }
 ];
 
-// Current election effects
+// Current election effects (set to default since elections are disabled)
 let activeElectionEffects = {
-    processingSpeed: 1.0,
-    paymentBonus: 1.0,
-    moodProtection: 1.0
+    processingSpeed: 1.0,  // No speed change
+    paymentBonus: 1.0,     // No payment bonus
+    moodProtection: 1.0    // No mood protection
 };
 
 // Level system (mood-based progression)
@@ -173,7 +290,8 @@ function updateHappiness(change) {
     console.log(`Happiness changed by ${actualChange.toFixed(1)} (from ${change}), now at ${happiness.toFixed(1)}`);
 }
 
-// Function to start an election
+// Function to start an election - COMMENTED OUT FOR NOW
+/*
 function startElection() {
     if (isElectionActive) return; // Already in election
     
@@ -188,7 +306,10 @@ function startElection() {
     // Show election UI (we'll create this)
     showElectionUI();
 }
+*/
 
+// ALL ELECTION FUNCTIONS COMMENTED OUT FOR NOW
+/*
 // Function to show election UI
 function showElectionUI() {
     const scene = game.scene.scenes[0];
@@ -398,6 +519,7 @@ function closeElection() {
     
     console.log("Election ended. Game resumed.");
 }
+*/
 
 // Removed happiness multiplier - mood no longer affects payment
 
@@ -417,7 +539,7 @@ function getDifficulty() {
 // Function to get current spawn delay
 function getSpawnDelay() {
     const difficulty = getDifficulty();
-    const baseDelay = Math.max(2000, 5000 - (difficulty * 3000)); // 5s to 2s
+    const baseDelay = Math.max(MIN_SPAWN_DELAY, MAX_SPAWN_DELAY - (difficulty * 3000)); // 5s to 2s
     const levelMultiplier = getCurrentLevel().spawnSpeedMultiplier;
     return baseDelay / levelMultiplier; // Faster spawn at higher levels
 }
@@ -425,7 +547,7 @@ function getSpawnDelay() {
 // Function to get current processing time
 function getProcessingTime() {
     const difficulty = getDifficulty();
-    const baseTime = Math.max(2000, 5000 - (difficulty * 3000)); // 5s to 2s
+    const baseTime = Math.max(MIN_PROCESSING_TIME, MAX_PROCESSING_TIME - (difficulty * 3000)); // 5s to 2s
     return baseTime * activeElectionEffects.processingSpeed; // Apply election effect
 }
 
@@ -489,8 +611,14 @@ function preload() {
     // Load IRS machine image
     this.load.image('irsMachine', 'assets/images/objects/irs-machine.png');
     
+    // Load thinking dot for processing animation
+    this.load.image('thinkingDot', 'assets/images/effects/thinking-dot.png');
+    
     // Load results station image
-    this.load.image('resultsStation', 'assets/images/objects/results.png');
+    this.load.image('resultsStation', 'assets/images/objects/the-hole.png');
+    
+    // Load put here text for results station
+    this.load.image('putHereText', 'assets/images/objects/put-here-txt.png');
     
     // Load belt images
     this.load.image('beltLeft', 'assets/images/objects/belt-left.png');
@@ -529,6 +657,9 @@ function preload() {
 
 // Create function - sets up the game world
 function create() {
+    // Store scene reference for use in other functions
+    gameScene = this;
+    
     // DEBUG: Level selection at start
     const debugLevel = prompt("DEBUG: Choose starting level (0=Junior, 1=Mid, 2=Senior, 3=Architect, 4=CEO) or press Cancel for Junior:");
     if (debugLevel !== null && !isNaN(debugLevel)) {
@@ -541,9 +672,9 @@ function create() {
         updateBribeDisplay(); // Update bribe rate display for debug level
     }
     // Create tiled background with proper borders
-    const tileSize = 80; // 80x80 tiles (5x bigger)
-    const tilesX = Math.ceil(1152 / tileSize); // Number of tiles needed horizontally
-    const tilesY = Math.ceil(720 / tileSize); // Number of tiles needed vertically
+    const tileSize = TILE_SIZE; // 80x80 tiles (5x bigger)
+    const tilesX = Math.ceil(GAME_WIDTH / tileSize); // Number of tiles needed horizontally
+    const tilesY = Math.ceil(GAME_HEIGHT / tileSize); // Number of tiles needed vertically
     
     // Tile indices (converted from 1-based row/col to 0-based array index)
     // Formula: index = (row - 1) * 27 + (col - 1)
@@ -575,7 +706,7 @@ function create() {
         cornerTile.setScale(0.5); // 2x smaller, same as top tiles
         
         // Add top edge border with wall tiles (smaller and connected, skip corner area)
-        const smallTileSpacing = 20; // Even smaller spacing to connect tiles
+        const smallTileSpacing = WALL_TILE_SPACING; // Even smaller spacing to connect tiles
         const smallTilesX = Math.ceil(1152 / smallTileSpacing) + 2; // Extra tiles to ensure coverage
         for (let x = 0; x < smallTilesX; x++) {
             const xPos = x * smallTileSpacing + 10;
@@ -612,8 +743,8 @@ function create() {
         
         // Create horizontal belt for TIN boxes
         const beltStartX = 200; // Start position from left
-        const beltY = 200; // Y position for belt
-        const beltScale = 0.5; // Scale for belt pieces
+        const beltY = BELT_Y; // Y position for belt
+        const beltScale = BELT_SCALE; // Scale for belt pieces
         
         // Create belt: left + 4 middle + right
         const beltLeft = this.add.image(beltStartX, beltY, 'beltLeft');
@@ -648,18 +779,25 @@ function create() {
     }
     
     
-    // Create player - character sprite at center (576, 360) 
-    player = this.add.image(576, 360, 'playerIdle');
-    player.setScale(0.25); // Scale down the character sprite (2x smaller)
+    // Create player - character sprite at center
+    player = this.add.image(PLAYER_START_X, PLAYER_START_Y, 'playerIdle');
+    player.setScale(PLAYER_SCALE);
+    player.setDepth(PLAYER_DEPTH);
     
-    // Create IRS Machine - image at (1000, 300)
-    irsMachine = this.add.image(1000, 300, 'irsMachine');
-    irsMachine.setScale(0.2); // 5x smaller
+    // Create IRS Machine
+    irsMachine = this.add.image(IRS_MACHINE_X, IRS_MACHINE_Y, 'irsMachine');
+    irsMachine.setScale(IRS_MACHINE_SCALE);
     
     
-    // Create Return Station - results image at (420, 660) - bottom of screen
-    returnStation = this.add.image(420, 660, 'resultsStation');
-    returnStation.setScale(0.2); // Scale down the results station to visible size
+    // Create Return Station
+    returnStation = this.add.image(RETURN_STATION_X, RETURN_STATION_Y, 'resultsStation');
+    returnStation.setScale(RETURN_STATION_SCALE);
+    returnStation.setDepth(STATION_DEPTH);
+    
+    // Add "put here" text above the hole
+    const putHereText = this.add.image(PUT_HERE_TEXT_X, PUT_HERE_TEXT_Y, 'putHereText');
+    putHereText.setScale(PUT_HERE_TEXT_SCALE);
+    putHereText.setDepth(STATION_DEPTH);
     
     
     
@@ -672,7 +810,7 @@ function create() {
     
     // Create and start background music
     this.bgMusic = this.sound.add('bgMusic', { 
-        volume: 0.5, 
+        volume: BACKGROUND_MUSIC_VOLUME, 
         loop: true 
     });
     this.bgMusic.play();
@@ -706,7 +844,7 @@ function create() {
     
     // Set up dynamic box spawning timer (updates every second)
     this.time.addEvent({
-        delay: 1000, // Check every second
+        delay: BOX_SPAWN_CHECK_INTERVAL, // Check every second
         callback: () => {
             if (gameIsPaused) return; // Don't spawn when paused
             
@@ -772,9 +910,9 @@ function spawnBox() {
     
     // Create TIN paper image at start of belt (always spawn at left)
     const startX = this.beltLeftX + 40;
-    const paperY = beltY - 10; // 10px higher than belt
+    const paperY = beltY + PAPER_Y_OFFSET; // 10px higher than belt
     const box = this.add.image(startX, paperY, 'tinPaper');
-    box.setScale(0.67); // 1.5x smaller (1/1.5 = 0.67)
+    box.setScale(TIN_PAPER_SCALE); // 1.5x smaller
     
     // Add TIN number in the middle of the paper
     const boxId = boxIdCounter++;
@@ -789,7 +927,7 @@ function spawnBox() {
     
     // Animate the paper sliding to the end of the belt
     const endX = this.beltRightX - 40;
-    const slideTime = 8000; // 8 seconds to traverse the belt
+    const slideTime = BOX_SLIDE_DURATION; // Time to traverse the belt
     
     this.tweens.add({
         targets: box,
@@ -840,9 +978,9 @@ function spawnBox() {
         boxData.assignedVia = 'prevalidated';
         
         if (validity === 1) {
-            box.setTint(0x00ff00); // Green tint for valid
+            box.setTint(VALID_BOX_TINT); // Green tint for valid
         } else {
-            box.setTint(0xff0000); // Red tint for invalid
+            box.setTint(INVALID_BOX_TINT); // Red tint for invalid
         }
         
         // Keep original TIN text, just use color for validation result
@@ -857,7 +995,7 @@ function spawnBox() {
 // Function to find nearest box within 60px
 function findNearestBox() {
     let nearestBox = null;
-    let nearestDistance = 60; // Max pickup distance
+    let nearestDistance = PICKUP_DISTANCE; // Max pickup distance
     
     for (let box of boxes) {
         const distance = Phaser.Math.Distance.Between(player.x, player.y, box.x, box.y);
@@ -918,7 +1056,7 @@ function dropBox() {
     
     // Show the box and label again
     boxToDrop.sprite.setVisible(true);
-    boxToDrop.sprite.setScale(0.67); // Keep smaller size
+    boxToDrop.sprite.setScale(TIN_PAPER_SCALE); // Keep smaller size
     boxToDrop.label.setVisible(true);
     boxToDrop.label.setScale(1.0); // Reset to normal size
     
@@ -941,7 +1079,7 @@ function processBox() {
     
     // Check if player is near IRS machine (within 96px)
     const distance = Phaser.Math.Distance.Between(player.x, player.y, irsMachine.x, irsMachine.y);
-    if (distance > 96) return;
+    if (distance > INTERACTION_DISTANCE) return;
     
     // Use the multi-box processing function instead
     processAllBoxes();
@@ -962,12 +1100,24 @@ function completeProcessing(boxToComplete) {
     
     // Change box tint based on result
     if (result === 1) {
-        boxToComplete.sprite.setTint(0x00ff00); // Green tint for valid
+        boxToComplete.sprite.setTint(VALID_BOX_TINT); // Green tint for valid
     } else {
-        boxToComplete.sprite.setTint(0xff0000); // Red tint for invalid
+        boxToComplete.sprite.setTint(INVALID_BOX_TINT); // Red tint for invalid
     }
     
-    // Keep original TIN text, just use color for validation result
+    // Show TIN text and paper again after processing
+    boxToComplete.label.setVisible(true);
+    boxToComplete.sprite.setVisible(true);
+    
+    // Clean up thinking dots animation
+    if (boxToComplete.thinkingAnimation) {
+        boxToComplete.thinkingAnimation.destroy();
+        boxToComplete.thinkingAnimation = null;
+    }
+    if (boxToComplete.thinkingDots) {
+        boxToComplete.thinkingDots.forEach(dot => dot.destroy());
+        boxToComplete.thinkingDots = null;
+    }
     
     console.log(`Processing complete: Box #${boxToComplete.id} TIN: ${boxToComplete.tin} = ${result}`);
     
@@ -1005,7 +1155,7 @@ function submitBox() {
     
     // Check if player is near return station (within 96px)
     const distance = Phaser.Math.Distance.Between(player.x, player.y, returnStation.x, returnStation.y);
-    if (distance > 96) return;
+    if (distance > INTERACTION_DISTANCE) return;
     
     // Get the correct result (predetermined validity)
     const correctResult = processedBox.validity;
@@ -1049,7 +1199,7 @@ function submitAllBoxes() {
     
     // Check if player is near return station
     const distance = Phaser.Math.Distance.Between(player.x, player.y, returnStation.x, returnStation.y);
-    if (distance > 96) return;
+    if (distance > INTERACTION_DISTANCE) return;
     
     let totalEarned = 0;
     
@@ -1100,7 +1250,7 @@ function processAllBoxes() {
     
     // Check if player is near IRS machine
     const distance = Phaser.Math.Distance.Between(player.x, player.y, irsMachine.x, irsMachine.y);
-    if (distance > 96) return;
+    if (distance > INTERACTION_DISTANCE) return;
     
     // Process up to available slots
     const availableSlots = maxSlots - processingBoxes.length;
@@ -1115,13 +1265,37 @@ function processAllBoxes() {
         
         // Position box in machine (stack them vertically)
         const slotIndex = processingBoxes.length - 1;
-        const yOffset = 24 + (slotIndex * 30);
+        const yOffset = PROCESSING_SLOT_BASE_Y + (slotIndex * PROCESSING_SLOT_SPACING);
         boxToProcess.sprite.setPosition(irsMachine.x, irsMachine.y + yOffset);
-        boxToProcess.sprite.setScale(0.67); // Keep smaller size
-        boxToProcess.sprite.setVisible(true);
+        boxToProcess.sprite.setScale(TIN_PAPER_SCALE); // Keep smaller size
+        boxToProcess.sprite.setVisible(false); // Hide paper during processing
         boxToProcess.label.setPosition(irsMachine.x, irsMachine.y + yOffset); // Center text on paper
         boxToProcess.label.setScale(1.0);
-        boxToProcess.label.setVisible(true);
+        boxToProcess.label.setVisible(false); // Hide TIN text during processing
+        
+        // Create thinking dots animation above the IRS machine
+        const thinkingDotsY = irsMachine.y + THINKING_DOTS_Y_OFFSET; // Position above IRS machine
+        boxToProcess.thinkingDots = [];
+        for (let dotIndex = 0; dotIndex < 3; dotIndex++) {
+            const dot = gameScene.add.image(irsMachine.x + THINKING_DOTS_X_START_OFFSET + (dotIndex * THINKING_DOTS_SPACING), thinkingDotsY, 'thinkingDot');
+            dot.setScale(THINKING_DOT_SMALL_SCALE); // Default small size
+            dot.setVisible(true); // Show all dots at once
+            boxToProcess.thinkingDots.push(dot);
+        }
+        
+        // Start ripple effect animation
+        let currentDot = 0;
+        boxToProcess.thinkingAnimation = gameScene.time.addEvent({
+            delay: THINKING_DOT_ANIMATION_DELAY, // Change ripple delay
+            callback: () => {
+                // Reset all dots to small size
+                boxToProcess.thinkingDots.forEach(dot => dot.setScale(THINKING_DOT_SMALL_SCALE));
+                // Make current dot bigger
+                boxToProcess.thinkingDots[currentDot].setScale(THINKING_DOT_LARGE_SCALE);
+                currentDot = (currentDot + 1) % 3;
+            },
+            loop: true
+        });
         
         // Update box data position
         boxToProcess.x = irsMachine.x;
@@ -1178,7 +1352,7 @@ function use0Card() {
             // Assign 0-card result to this unprocessed box
             targetBox.result = 0;
             targetBox.assignedVia = 'space';
-            targetBox.sprite.setTint(0xff0000); // Red tint
+            targetBox.sprite.setTint(ZERO_CARD_TINT); // Red tint
             console.log(`Used 0-card on box #${targetBox.id} (index ${spaceCardIndex})`);
             
             // Move to next box for next SPACE press
@@ -1247,7 +1421,7 @@ function bribeIRS() {
     // Add yellow border graphics to show bribed status
     if (!targetBox.bribeBorder) {
         targetBox.bribeBorder = scene.add.graphics();
-        targetBox.bribeBorder.lineStyle(4, 0xffff00); // Yellow border, 4px thick
+        targetBox.bribeBorder.lineStyle(4, BRIBE_BORDER_TINT); // Yellow border, 4px thick
         
         // Get banner dimensions (assuming banner is scaled to 0.67)
         const bannerWidth = targetBox.sprite.width * 0.67;
@@ -1265,7 +1439,7 @@ function bribeIRS() {
     // Calculate remaining processing time and speed it up by 80%
     const elapsed = Date.now() - targetBox.processingStartTime;
     const remaining = targetBox.originalProcessingTime - elapsed;
-    const acceleratedTime = remaining * 0.2; // 80% faster = 20% of original time
+    const acceleratedTime = remaining * BRIBE_SPEED_MULTIPLIER; // 80% faster = 20% of original time
     
     // Clear the old timeout and set a new faster one
     setTimeout(() => {
@@ -1309,14 +1483,14 @@ function update() {
         // Show pause indicator
         if (!this.pauseText) {
             this.pauseText = this.add.text(480, 360, 'PAUSED\nPress P to Resume', {
-                fontSize: '48px',
+                fontSize: PAUSE_TEXT_FONT_SIZE,
                 fill: '#ffffff',
                 fontFamily: 'Arial',
                 align: 'center',
                 backgroundColor: '#000000',
                 padding: { x: 20, y: 20 }
             }).setOrigin(0.5);
-            this.pauseText.setDepth(1000); // Ensure it's on top
+            this.pauseText.setDepth(PAUSE_TEXT_DEPTH); // Ensure it's on top
         }
         return;
     } else {
@@ -1332,7 +1506,8 @@ function update() {
         return;
     }
     
-    // Handle voting keys (1, 2, 3) - allow during elections even when paused
+    // Handle voting keys (1, 2, 3) - COMMENTED OUT
+    /*
     if (isElectionActive) {
         if (Phaser.Input.Keyboard.JustDown(keys.one)) {
             vote(0);
@@ -1349,9 +1524,10 @@ function update() {
             return;
         }
     }
+    */
     
     // Player movement with level bonus
-    const baseSpeed = 300; // Increased from 200 (1.5x faster)
+    const baseSpeed = BASE_PLAYER_SPEED; // Increased from 200 (1.5x faster)
     const speedBonus = getCurrentLevel().speedBonus;
     const speed = baseSpeed + speedBonus;
     
@@ -1409,8 +1585,8 @@ function update() {
     // Keep player within world boundaries, away from border tiles
     // Player is 57x57 (29px radius), borders are 16px wide
     // Left/Right: 45px from edges, Top/Bottom: 53px from edges (extra 8px gap)
-    player.x = Phaser.Math.Clamp(player.x, 45, 1152 - 45);
-    player.y = Phaser.Math.Clamp(player.y, 53, 720 - 53);
+    player.x = Phaser.Math.Clamp(player.x, PLAYER_BOUNDARY_MARGIN_X, GAME_WIDTH - PLAYER_BOUNDARY_MARGIN_X);
+    player.y = Phaser.Math.Clamp(player.y, PLAYER_BOUNDARY_MARGIN_Y, GAME_HEIGHT - PLAYER_BOUNDARY_MARGIN_Y);
     
     
     // Handle E key for pickup OR processing OR submission
@@ -1454,24 +1630,26 @@ function update() {
         bribeIRS();
     }
     
-    // Handle T key for testing elections (dev shortcut)
+    // Handle T key for testing elections (dev shortcut) - COMMENTED OUT
+    /*
     if (Phaser.Input.Keyboard.JustDown(keys.t) && !isElectionActive) {
         console.log("DEBUG: Triggering test election");
         startElection();
     }
+    */
     
     
     // Update carried boxes position (show as small banners following player)
     for (let i = 0; i < carriedBoxes.length; i++) {
         const box = carriedBoxes[i];
-        const offsetX = 24 + (i * 18); // Stack them horizontally
-        const offsetY = -24;
+        const offsetX = CARRIED_BOX_BASE_OFFSET + (i * CARRIED_BOX_X_SPACING); // Stack them horizontally
+        const offsetY = CARRIED_BOX_Y_OFFSET;
         
         box.sprite.setPosition(player.x + offsetX, player.y + offsetY);
-        box.sprite.setScale(0.6); // Make it smaller when carried
+        box.sprite.setScale(CARRIED_BOX_SCALE); // Make it smaller when carried
         box.sprite.setVisible(true); // Make sure it's visible
         box.label.setPosition(player.x + offsetX, player.y + offsetY); // Center the text on the banner
-        box.label.setScale(0.6); // Smaller label too
+        box.label.setScale(CARRIED_BOX_SCALE); // Smaller label too
         box.label.setVisible(true);
     }
     
@@ -1495,10 +1673,13 @@ function update() {
     document.getElementById('timer-display').textContent = formatTime(elapsedSeconds);
     
     // Check for election time
+    // Election timing check - COMMENTED OUT
+    /*
     const currentGameTime = Date.now() - gameStartTime - pausedTime;
     if (!isElectionActive && currentGameTime >= nextElectionTime) {
         startElection();
     }
+    */
     
     // Check for expired boxes
     const expirationTime = getBoxExpirationTime();
