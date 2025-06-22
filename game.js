@@ -4,9 +4,9 @@
 // ===== GAME CONSTANTS =====
 
 // Display/Screen Dimensions
-const GAME_WIDTH = 1152;
+const GAME_WIDTH = 900; // Added 50px more
 const GAME_HEIGHT = 720;
-const PLAYER_START_X = 576;
+const PLAYER_START_X = 450; // Centered in new width
 const PLAYER_START_Y = 360;
 
 // Sprite Scales
@@ -34,13 +34,14 @@ const BRIBE_SPEED_MULTIPLIER = 0.2; // 80% faster = 20% of original time
 const PICKUP_DISTANCE = 60;
 const INTERACTION_DISTANCE = 96;
 const PLAYER_BOUNDARY_MARGIN_X = 45;
-const PLAYER_BOUNDARY_MARGIN_Y = 53;
+const PLAYER_BOUNDARY_MARGIN_Y = 100; // Character can't go beyond 100px from top
 
 // Positioning/Layout  
 const TILE_SIZE = 80;
 const WALL_TILE_SPACING = 20;
 const BELT_Y = 200;
-const IRS_MACHINE_X = 1000;
+const BELT_START_X = 100; // Belt start position (moved 100px left)
+const IRS_MACHINE_X = 800; // Adjusted for new width
 const IRS_MACHINE_Y = 300;
 const RETURN_STATION_X = 420;
 const RETURN_STATION_Y = 660;
@@ -82,11 +83,16 @@ const INVALID_BOX_TINT = 0xff0000; // Red
 const ZERO_CARD_TINT = 0xff0000; // Red
 const BRIBE_BORDER_TINT = 0xffff00; // Yellow
 
-// Depth Values
-const FLOOR_DEPTH = 0;
-const STATION_DEPTH = 0.5;
-const PLAYER_DEPTH = 1;
-const PAUSE_TEXT_DEPTH = 1000;
+// Depth Values (Z-Index Map) - Floor at bottom, everything else above
+const FLOOR_DEPTH = 0;             // Base layer - behind everything
+const WALLPAPER_DEPTH = 1;         // Above floor
+const WALL_LINING_DEPTH = 2;       // Above wallpaper
+const VERTICAL_WALLS_DEPTH = 3;    // Above lining
+const TOP_EDGE_DEPTH = 5;          // Above walls
+const STATION_DEPTH = 6;           // Above floor and walls
+const PLAYER_DEPTH = 10;           // Above stations and walls
+const THINKING_DOTS_DEPTH = 11;    // Above player
+const PAUSE_TEXT_DEPTH = 1000;     // UI layer
 const ELECTION_UI_BACKGROUND_DEPTH = 2000;
 const ELECTION_UI_TEXT_DEPTH = 2001;
 
@@ -117,6 +123,36 @@ const MIN_SPAWN_DELAY = 2000; // 2 seconds
 const MAX_SPAWN_DELAY = 5000; // 5 seconds
 const MIN_PROCESSING_TIME = 2000; // 2 seconds  
 const MAX_PROCESSING_TIME = 5000; // 5 seconds
+
+// Wall Constants
+const TOP_WALL_HEIGHT = 120; // 1.5x longer (80 * 1.5 = 120)
+const WALL_LINING_HEIGHT = 10;
+const TOP_WALL_Y_OFFSET = 10;
+const VERTICAL_WALL_START_Y = 15; // Start vertical walls close to top edge to minimize gap
+const WINDOW_X = 120; // Position from left edge (moved 50px more right)
+const WINDOW_Y = 50; // Position from top edge (~50px from top)
+const WINDOW_SCALE = 0.432; // 1.2x bigger again (0.36 * 1.2 = 0.432)
+const WINDOW_DEPTH = 4; // Above walls but below other objects
+const TABLES_X = GAME_WIDTH - 160; // Moved 20px to the right
+const TABLES_Y = 95; // Moved up 5px more (was 100, now 95 from top edge)
+const TABLES_SCALE = 0.6; // 2x bigger (was 0.3, now 0.6)
+const TABLES_DEPTH = 5; // Above walls, visible on floor
+const PLANT_X = 65; // Moved 5px more to the right
+const PLANT_Y = GAME_HEIGHT - 100; // 100px from bottom
+const CAT_X = PLANT_X + 70; // 70px to the right of the plant (50px more)
+const CAT_Y = RETURN_STATION_Y - 20; // Slightly above the hole
+const CAT_SCALE = 0.3; // Appropriate size
+const CAT_DEPTH = 7; // Above stations
+const CAT_ANIMATION_DELAY = 1000; // Switch between images every second
+const PLANT_SCALE = 0.133; // 1.5x smaller (0.2 / 1.5 = 0.133)
+const PLANT_DEPTH = 6; // Above stations
+const WALLPAPER_FALLBACK_COLOR = 0x8B4513; // Brown color
+const WALL_LINING_FALLBACK_COLOR = 0x654321; // Dark brown color
+const WALL_TILE_FALLBACK_COLOR = 0x666666; // Gray color
+const WINDOW_FALLBACK_COLOR = 0x87CEEB; // Light blue color
+const TABLES_FALLBACK_COLOR = 0x8B4513; // Brown color
+const CAT_FALLBACK_COLOR = 0x8B4513; // Brown color
+const PLANT_FALLBACK_COLOR = 0x228B22; // Green color
 
 // Game configuration
 const config = {
@@ -589,21 +625,7 @@ function determineTINValidity(tin) {
 
 // Preload function - loads assets
 function preload() {
-    // Try multiple path variations to find the correct one
-    console.log('Attempting to load tileset...');
-    
-    // Try different paths
-    this.load.image('testTiles1', './assets/images/tiles/roguelikeIndoor_transparent.png');
-    this.load.image('testTiles2', '/assets/images/tiles/roguelikeIndoor_transparent.png');
-    this.load.image('testTiles3', 'assets/images/tiles/roguelikeIndoor_transparent.png');
-    
-    // Load tileset with 16x16 tiles and 1px spacing 
-    this.load.spritesheet('tiles', 'assets/images/tiles/roguelikeIndoor_transparent.png', {
-        frameWidth: 16,
-        frameHeight: 16,
-        margin: 0,      // No margin at edges
-        spacing: 1      // 1px between tiles
-    });
+    // Removed unused tileset loading
     
     // Load TIN paper image for TIN boxes
     this.load.image('tinPaper', 'assets/images/objects/tin-paper.png');
@@ -613,6 +635,17 @@ function preload() {
     
     // Load thinking dot for processing animation
     this.load.image('thinkingDot', 'assets/images/effects/thinking-dot.png');
+    
+    // Load wall assets
+    this.load.image('wallpaper', 'assets/images/backgrounds/wallpaper.png');
+    this.load.image('wallLining', 'assets/images/backgrounds/wall-lining.png');
+    this.load.image('window', 'assets/images/objects/window.png');
+    this.load.image('tables', 'assets/images/objects/tables.png');
+    this.load.image('plant', 'assets/images/objects/plant.png');
+    
+    // Load cat assets
+    this.load.image('catLay1', 'assets/images/character/cat/cat-sleep-1.png');
+    this.load.image('catLay2', 'assets/images/character/cat/cat-sleep-2.png');
     
     // Load results station image
     this.load.image('resultsStation', 'assets/images/objects/the-hole.png');
@@ -633,7 +666,6 @@ function preload() {
     this.load.image('wallTileBottom', 'assets/images/backgrounds/wall-tile-1.png');
     this.load.image('wallTileLeft', 'assets/images/backgrounds/wall-vertical.png');
     this.load.image('wallTileRight', 'assets/images/backgrounds/wall-vertical.png');
-    this.load.image('wallTileLeftTopCorner', 'assets/images/backgrounds/wall-tile-left-top-corner.png');
     
     // Load character sprites
     this.load.image('playerIdle', 'assets/images/character/green/front-facing.png');
@@ -648,6 +680,12 @@ function preload() {
     // Add error event listeners
     this.load.on('loaderror', function (event) {
         console.log('Load error:', event);
+        if (event.src.includes('wallpaper.png')) {
+            console.error('Failed to load wallpaper.png asset!');
+        }
+        if (event.src.includes('wall-lining.png')) {
+            console.error('Failed to load wall-lining.png asset!');
+        }
     });
     
     this.load.on('complete', function () {
@@ -690,59 +728,138 @@ function create() {
         fill: 24                                 // Original floor tile (index 24)
     };
     
-    // Check if tileset loaded properly
-    if (this.textures.exists('tiles')) {
-        console.log('Creating bordered tilemap...');
+    // Create the game world
         
         // First pass: Place floor tiles everywhere
         for (let x = 0; x < tilesX; x++) {
             for (let y = 0; y < tilesY; y++) {
-                this.add.image(x * tileSize + tileSize/2, y * tileSize + tileSize/2, 'floorTile').setDisplaySize(80, 80);
+                const floorTile = this.add.image(x * tileSize + tileSize/2, y * tileSize + tileSize/2, 'floorTile');
+                floorTile.setDisplaySize(80, 80);
+                floorTile.setDepth(FLOOR_DEPTH);
             }
         }
         
-        // Add left top corner piece
-        const cornerTile = this.add.image(0, 0, 'wallTileTop');
-        cornerTile.setScale(0.5); // 2x smaller, same as top tiles
-        
-        // Add top edge border with wall tiles (smaller and connected, skip corner area)
-        const smallTileSpacing = WALL_TILE_SPACING; // Even smaller spacing to connect tiles
-        const smallTilesX = Math.ceil(1152 / smallTileSpacing) + 2; // Extra tiles to ensure coverage
+        // Add top edge border first (for collision) - keep original small scale
+        const smallTileSpacing = WALL_TILE_SPACING;
+        const smallTilesX = Math.ceil(GAME_WIDTH / smallTileSpacing) + 2;
         for (let x = 0; x < smallTilesX; x++) {
             const xPos = x * smallTileSpacing + 10;
-            // Skip the corner area (first 20px to avoid overlap with scaled corner)
-            if (xPos > 20) {
-                const topTile = this.add.image(xPos, 0, 'wallTileTop');
-                topTile.setScale(0.5); // 2x smaller
+            const topTile = this.add.image(xPos, 0, 'wallTileTop');
+            topTile.setScale(WALL_TILE_SCALE);
+            topTile.setDepth(TOP_EDGE_DEPTH); // Above floor and vertical walls
+        }
+        
+        // Create wallpaper wall behind the top edge
+        const tilesPerRow = Math.ceil(GAME_WIDTH / TILE_SIZE);
+        
+        // Create wallpaper tiles starting from just below the top edge
+        for (let x = 0; x < tilesPerRow; x++) {
+            const wallpaperX = x * TILE_SIZE + TILE_SIZE/2;
+            const wallpaperY = TOP_WALL_HEIGHT/2 + TOP_WALL_Y_OFFSET; // Center the wallpaper vertically
+            
+            // Try to create wallpaper, fallback to colored rectangle if asset missing
+            try {
+                const wallpaperTile = this.add.image(wallpaperX, wallpaperY, 'wallpaper');
+                wallpaperTile.setDisplaySize(TILE_SIZE, TOP_WALL_HEIGHT);
+                wallpaperTile.setDepth(WALLPAPER_DEPTH);
+            } catch (error) {
+                console.warn('Wallpaper asset not found, using fallback rectangle');
+                const fallbackWall = this.add.rectangle(wallpaperX, wallpaperY, TILE_SIZE, TOP_WALL_HEIGHT, WALLPAPER_FALLBACK_COLOR);
+                fallbackWall.setDepth(WALLPAPER_DEPTH);
             }
         }
         
-        // Add bottom edge border with wall tiles (smaller and connected, same as top)
-        for (let x = 0; x < smallTilesX; x++) {
-            const xPos = x * smallTileSpacing + 10;
-            const bottomTile = this.add.image(xPos, 720, 'wallTileBottom');
-            bottomTile.setScale(0.5); // 2x smaller, same as top tiles
+        // Add wall lining at the bottom of the wallpaper
+        const liningY = TOP_WALL_HEIGHT + TOP_WALL_Y_OFFSET;
+        for (let x = 0; x < tilesPerRow; x++) {
+            const liningX = x * TILE_SIZE + TILE_SIZE/2;
+            
+            // Try to create lining, fallback to colored rectangle if asset missing
+            try {
+                const liningTile = this.add.image(liningX, liningY, 'wallLining');
+                liningTile.setDisplaySize(TILE_SIZE, WALL_LINING_HEIGHT);
+                liningTile.setDepth(WALL_LINING_DEPTH);
+            } catch (error) {
+                console.warn('Wall lining asset not found, using fallback rectangle');
+                const fallbackLining = this.add.rectangle(liningX, liningY, TILE_SIZE, WALL_LINING_HEIGHT, WALL_LINING_FALLBACK_COLOR);
+                fallbackLining.setDepth(WALL_LINING_DEPTH);
+            }
         }
         
-        // Add left edge border with wall tiles (start right after corner)
-        const verticalTileSpacing = 20; // Same spacing as horizontal tiles
-        const verticalTilesY = Math.ceil(720 / verticalTileSpacing) + 2;
-        for (let y = 1; y < verticalTilesY; y++) { // Start from y=1 to connect to corner
+        // Add bottom edge border with wall tiles
+        // Reuse smallTileSpacing and smallTilesX from above
+        for (let x = 0; x < smallTilesX; x++) {
+            const xPos = x * smallTileSpacing + 10;
+            const bottomTile = this.add.image(xPos, GAME_HEIGHT, 'wallTileBottom');
+            bottomTile.setScale(WALL_TILE_SCALE);
+        }
+        
+        // Add left edge border with wall tiles
+        const verticalTileSpacing = WALL_TILE_SPACING;
+        const verticalTilesY = Math.ceil(GAME_HEIGHT / verticalTileSpacing) + 2;
+        
+        for (let y = 0; y < verticalTilesY; y++) { // Start from y=0, use z-index to handle overlap
             const yPos = y * verticalTileSpacing;
-            const leftTile = this.add.image(0, yPos, 'wallTileLeft');
-            leftTile.setScale(0.5); // 2x smaller to match other tiles
+            try {
+                const leftTile = this.add.image(0, yPos, 'wallTileLeft');
+                leftTile.setScale(1.0); // Make larger and more visible
+                leftTile.setDepth(VERTICAL_WALLS_DEPTH);
+            } catch (error) {
+                console.warn('Left wall tile asset not found, using fallback');
+                const fallbackLeft = this.add.rectangle(0, yPos, WALL_TILE_SPACING, WALL_TILE_SPACING, WALL_TILE_FALLBACK_COLOR);
+                fallbackLeft.setDepth(VERTICAL_WALLS_DEPTH);
+            }
         }
         
-        // Add right edge border with wall tiles (smaller spacing)
-        for (let y = 0; y < verticalTilesY; y++) {
-            const yPos = y * verticalTileSpacing + 10;
-            const rightTile = this.add.image(1152, yPos, 'wallTileRight');
-            rightTile.setScale(0.5); // 2x smaller to match other tiles
+        // Add right edge border with wall tiles - start below top edge
+        for (let y = 0; y < verticalTilesY; y++) { // Start from y=0, use z-index to handle overlap
+            const yPos = y * verticalTileSpacing;
+            try {
+                const rightTile = this.add.image(GAME_WIDTH, yPos, 'wallTileRight');
+                rightTile.setScale(1.0); // Make larger and more visible
+                rightTile.setDepth(VERTICAL_WALLS_DEPTH);
+            } catch (error) {
+                console.warn('Right wall tile asset not found, using fallback');
+                const fallbackRight = this.add.rectangle(GAME_WIDTH, yPos, WALL_TILE_SPACING, WALL_TILE_SPACING, WALL_TILE_FALLBACK_COLOR);
+                fallbackRight.setDepth(VERTICAL_WALLS_DEPTH);
+            }
         }
         
+        // Add window on the left wall
+        try {
+            const window = this.add.image(WINDOW_X, WINDOW_Y, 'window');
+            window.setScale(WINDOW_SCALE);
+            window.setDepth(WINDOW_DEPTH); // Above walls but below other objects
+        } catch (error) {
+            console.warn('Window asset not found, using fallback');
+            const fallbackWindow = this.add.rectangle(WINDOW_X, WINDOW_Y, 60, 80, WINDOW_FALLBACK_COLOR);
+            fallbackWindow.setDepth(WINDOW_DEPTH);
+        }
+        
+        // Add tables on the left side, aligned with wall lining
+        try {
+            const tables = this.add.image(TABLES_X, TABLES_Y, 'tables');
+            tables.setScale(TABLES_SCALE);
+            tables.setDepth(TABLES_DEPTH); // Above floor and walls
+        } catch (error) {
+            console.warn('Tables asset not found, using fallback');
+            const fallbackTables = this.add.rectangle(TABLES_X, TABLES_Y, 100, 60, TABLES_FALLBACK_COLOR);
+            fallbackTables.setDepth(TABLES_DEPTH);
+        }
+        
+        // Add plant near bottom left
+        try {
+            const plant = this.add.image(PLANT_X, PLANT_Y, 'plant');
+            plant.setScale(PLANT_SCALE);
+            plant.setDepth(PLANT_DEPTH); // Above floor and walls
+        } catch (error) {
+            console.warn('Plant asset not found, using fallback');
+            const fallbackPlant = this.add.rectangle(PLANT_X, PLANT_Y, 40, 60, PLANT_FALLBACK_COLOR);
+            fallbackPlant.setDepth(PLANT_DEPTH);
+        }
         
         // Create horizontal belt for TIN boxes
-        const beltStartX = 200; // Start position from left
+        const beltStartX = BELT_START_X; // Start position from left
         const beltY = BELT_Y; // Y position for belt
         const beltScale = BELT_SCALE; // Scale for belt pieces
         
@@ -771,12 +888,6 @@ function create() {
         this.beltLeftX = beltStartX;
         this.beltRightX = beltStartX + 400;
         
-        console.log('Bordered tilemap and table created successfully');
-    } else {
-        // Fallback to solid background if tileset failed to load
-        this.add.rectangle(480, 360, 960, 720, 0x2c3e50);
-        console.log('Tileset failed to load, using solid background');
-    }
     
     
     // Create player - character sprite at center
@@ -798,6 +909,30 @@ function create() {
     const putHereText = this.add.image(PUT_HERE_TEXT_X, PUT_HERE_TEXT_Y, 'putHereText');
     putHereText.setScale(PUT_HERE_TEXT_SCALE);
     putHereText.setDepth(STATION_DEPTH);
+    
+    // Add cat near the hole with alternating animation
+    try {
+        this.cat = this.add.image(CAT_X, CAT_Y, 'catLay1');
+        this.cat.setScale(CAT_SCALE);
+        this.cat.setDepth(CAT_DEPTH);
+        
+        // Create alternating animation between cat images
+        this.catCurrentFrame = 1;
+        this.catAnimationTimer = this.time.addEvent({
+            delay: CAT_ANIMATION_DELAY,
+            callback: () => {
+                if (this.cat) {
+                    this.catCurrentFrame = this.catCurrentFrame === 1 ? 2 : 1;
+                    this.cat.setTexture(`catLay${this.catCurrentFrame}`);
+                }
+            },
+            loop: true
+        });
+    } catch (error) {
+        console.warn('Cat assets not found, using fallback');
+        const fallbackCat = this.add.rectangle(CAT_X, CAT_Y, 40, 30, 0x8B4513); // Brown color
+        fallbackCat.setDepth(CAT_DEPTH);
+    }
     
     
     

@@ -89,6 +89,7 @@ Each development step must be verified working before proceeding:
 - **Modular Design**: Separate concerns into logical modules
 - **Clean Architecture**: GameState for central state management
 - **Performance**: Target 60 FPS, <100ms input latency, <5MB total size
+- **Constants Over Magic Numbers**: ALWAYS use named constants instead of hardcoded numbers. All numeric values (positions, scales, timings, distances, colors, etc.) must be defined as const variables at the top of the file with descriptive names. This improves maintainability and makes the code self-documenting.
 
 ## Assets & Content
 
