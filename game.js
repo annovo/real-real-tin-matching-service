@@ -34,7 +34,8 @@ const BRIBE_SPEED_MULTIPLIER = 0.2; // 80% faster = 20% of original time
 const PICKUP_DISTANCE = 60;
 const INTERACTION_DISTANCE = 96;
 const PLAYER_BOUNDARY_MARGIN_X = 45;
-const PLAYER_BOUNDARY_MARGIN_Y = 100; // Character can't go beyond 100px from top
+const PLAYER_BOUNDARY_MARGIN_Y_TOP = 100; // Character can't go beyond 100px from top
+const PLAYER_BOUNDARY_MARGIN_Y_BOTTOM = 60; // Character can't go beyond 60px from bottom (10px bigger)
 
 // Positioning/Layout  
 const TILE_SIZE = 80;
@@ -1721,7 +1722,7 @@ function update() {
     // Player is 57x57 (29px radius), borders are 16px wide
     // Left/Right: 45px from edges, Top/Bottom: 53px from edges (extra 8px gap)
     player.x = Phaser.Math.Clamp(player.x, PLAYER_BOUNDARY_MARGIN_X, GAME_WIDTH - PLAYER_BOUNDARY_MARGIN_X);
-    player.y = Phaser.Math.Clamp(player.y, PLAYER_BOUNDARY_MARGIN_Y, GAME_HEIGHT - PLAYER_BOUNDARY_MARGIN_Y);
+    player.y = Phaser.Math.Clamp(player.y, PLAYER_BOUNDARY_MARGIN_Y_TOP, GAME_HEIGHT - PLAYER_BOUNDARY_MARGIN_Y_BOTTOM);
     
     
     // Handle E key for pickup OR processing OR submission
