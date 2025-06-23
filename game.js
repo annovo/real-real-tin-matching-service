@@ -73,7 +73,7 @@ const TIN_VALIDITY_CHANCE = 0.5;
 const MAX_BOXES_LIMIT = 100;
 const PRE_VALIDATION_CHANCE = 0.3;
 const BASE_PLAYER_SPEED = 300;
-const BRIBE_COST_MULTIPLIER_THRESHOLD = 2; // level >= 2
+const BRIBE_COST_MULTIPLIER_THRESHOLD = 2; // Senior level
 
 // Payment amounts by level
 const LEVEL_PAYMENTS = [100, 500, 1000];
@@ -118,6 +118,17 @@ const ELECTION_TITLE_Y = 200;
 const ELECTION_INSTRUCTIONS_Y = 240;
 const CANDIDATE_START_Y = 290;
 const CANDIDATE_Y_SPACING = 60;
+
+// Dialog UI Constants
+const DIALOG_X = 450; // Center of 900px screen
+const DIALOG_Y = 360; // Center of 720px screen
+const DIALOG_SCALE = 0.40; // 20% bigger than previous 0.33 scale
+const DIALOG_TITLE_Y_OFFSET = -50;
+const DIALOG_TEXT_Y_OFFSET = -30;
+const DIALOG_TEXT_FONT_SIZE = '18px'; // 12px * 1.5 = 18px
+const DIALOG_TITLE_FONT_SIZE = '21px'; // 14px * 1.5 = 21px
+const DIALOG_TEXT_MAX_WIDTH = 300;
+const DIALOG_DEPTH = 3000;
 
 // Processing Time Ranges
 const MIN_SPAWN_DELAY = 2000; // 2 seconds
@@ -198,6 +209,8 @@ let bribeIndex = 0; // Track which processing box to bribe next
 let electionCount = 0; // Track number of elections held
 let nextElectionTime = 30000; // 30 seconds in milliseconds
 let isElectionActive = false; // Track if election is currently happening
+let welcomeDialogActive = true; // Track if welcome dialog should be shown
+let dialogStep = 1; // Track which dialog step we're on (1 = hired, 2 = responsibilities, 3 = one more thing)
 
 // List of obviously bad TINs that should always be invalid
 const badTINs = ['000000000', '111111111', '999999999', '123456789'];
@@ -235,9 +248,7 @@ let activeElectionEffects = {
 const levels = [
     { name: 'Junior', initMood: 50, speedBonus: 0, carryCapacity: 1, irsSlots: 1, preValidated: false, moodGainRate: 5.0, moodLossRate: 1.0, spawnSpeedMultiplier: 0.95, bribeCost: 200 },
     { name: 'Mid', initMood: 35, speedBonus: 100, carryCapacity: 2, irsSlots: 1, preValidated: false, moodGainRate: 3.5, moodLossRate: 1.2, spawnSpeedMultiplier: 1.5, bribeCost: 500 },
-    { name: 'Senior', initMood: 25, speedBonus: 100, carryCapacity: 2, irsSlots: 2, preValidated: false, moodGainRate: 2.5, moodLossRate: 1.4, spawnSpeedMultiplier: 1.71, bribeCost: 2000 },
-    { name: 'Architect', initMood: 10, speedBonus: 100, carryCapacity: 2, irsSlots: 2, preValidated: true, moodGainRate: 1.0, moodLossRate: 1.6, spawnSpeedMultiplier: 2.0, bribeCost: 5000 },
-    { name: 'CEO', initMood: 0, speedBonus: 150, carryCapacity: 3, irsSlots: 3, preValidated: true, moodGainRate: 0.2, moodLossRate: 1.8, spawnSpeedMultiplier: 2.0, bribeCost: 5000 }
+    { name: 'Senior', initMood: 25, speedBonus: 100, carryCapacity: 2, irsSlots: 2, preValidated: false, moodGainRate: 2.5, moodLossRate: 1.4, spawnSpeedMultiplier: 1.71, bribeCost: 2000 }
 ];
 
 // Function to get current level info
@@ -258,9 +269,14 @@ function updatePlayerSprite() {
     player.setTexture(spriteKey);
 }
 
-// Function to check for promotion
+// Function to check for promotion or game win
 function checkPromotion() {
-    if (level < levels.length - 1 && happiness >= 100) {
+    if (level === 2 && happiness >= 100) {
+        // Win condition: Senior level with 100 mood
+        alert('VICTORY! You have reached maximum happiness as a Senior employee! You win!');
+        console.log('GAME WON: Senior level reached 100 mood');
+        return true;
+    } else if (level < levels.length - 1 && happiness >= 100) {
         level++;
         const newLevel = getCurrentLevel();
         happiness = newLevel.initMood; // Reset to new level's starting mood
@@ -271,6 +287,257 @@ function checkPromotion() {
         return true;
     }
     return false;
+}
+
+
+// Function to show welcome dialog
+function showWelcomeDialog() {
+    const scene = game.scene.scenes[0];
+    
+    // Pause the game while dialog is shown
+    gameIsPaused = true;
+    
+    // Create dialog background
+    const dialogBg = scene.add.image(DIALOG_X, DIALOG_Y, 'dialog');
+    dialogBg.setScale(DIALOG_SCALE);
+    dialogBg.setDepth(DIALOG_DEPTH);
+    
+    // Subject text (250px from left, 1.5x bigger font)
+    const subjectText = scene.add.text(DIALOG_X - 400 + 250, DIALOG_Y + DIALOG_TITLE_Y_OFFSET - 100, 'Subject:', {
+        fontSize: '32px', // 21px * 1.5 = 31.5px, rounded to 32px
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'left',
+        fontWeight: '600'
+    }).setOrigin(0, 0.5);
+    subjectText.setDepth(DIALOG_DEPTH + 1);
+    
+    // "You're hired!" text (same row as Subject, 60px to the right of center)
+    const hiredText = scene.add.text(DIALOG_X + 80, DIALOG_Y + DIALOG_TITLE_Y_OFFSET - 100, 'You\'re hired!', {
+        fontSize: DIALOG_TITLE_FONT_SIZE,
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'center',
+        fontStyle: 'bold'
+    }).setOrigin(0.5);
+    hiredText.setDepth(DIALOG_DEPTH + 1);
+    
+    // Main dialog text
+    const dialogText = `Congratulations! You've been hired by AxBit!
+
+As you know, our company's mission is to uphold justice and integrity — and that includes verifying whether our customers' TINs are valid.
+
+Our previous engineer, Mravis, built a system to perform real-time TIN matching. Fortunately for you, he was consumed by greed and left to pursue a "div-centering" career.
+
+Now, you've been chosen to maintain this masterpiece. Good luck!`;
+    
+    const mainText = scene.add.text(DIALOG_X, DIALOG_Y + DIALOG_TEXT_Y_OFFSET + 60, dialogText, {
+        fontSize: DIALOG_TEXT_FONT_SIZE,
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'left',
+        wordWrap: { width: DIALOG_TEXT_MAX_WIDTH }
+    }).setOrigin(0.5);
+    mainText.setDepth(DIALOG_DEPTH + 1);
+    
+    // Accept button at bottom right corner of dialog
+    const buttonX = DIALOG_X + 115; // 3px more to the left (118 - 3 = 115)
+    const buttonY = DIALOG_Y + 154; // 4px more down (150 + 4 = 154)
+    
+    const acceptButton = scene.add.image(buttonX, buttonY, 'button');
+    acceptButton.setScale(0.08); // Slightly smaller (0.1 reduced for 2px effect)
+    acceptButton.setDepth(DIALOG_DEPTH + 1);
+    
+    // "Accept (Y)" text on the button
+    const buttonText = scene.add.text(buttonX, buttonY, 'Accept (Y)', {
+        fontSize: '14px',
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'center',
+        fontWeight: 'bold'
+    }).setOrigin(0.5);
+    buttonText.setDepth(DIALOG_DEPTH + 2);
+    
+    // Store dialog elements for cleanup
+    scene.welcomeDialogUI = [dialogBg, subjectText, hiredText, mainText, acceptButton, buttonText];
+}
+
+// Function to show responsibilities dialog
+function showResponsibilitiesDialog() {
+    const scene = game.scene.scenes[0];
+    
+    // Pause the game while dialog is shown
+    gameIsPaused = true;
+    
+    // Create dialog background
+    const dialogBg = scene.add.image(DIALOG_X, DIALOG_Y, 'dialog');
+    dialogBg.setScale(DIALOG_SCALE);
+    dialogBg.setDepth(DIALOG_DEPTH);
+    
+    // Subject text (same position as before)
+    const subjectText = scene.add.text(DIALOG_X - 400 + 250, DIALOG_Y + DIALOG_TITLE_Y_OFFSET - 100, 'Subject:', {
+        fontSize: '32px', // 21px * 1.5 = 31.5px, rounded to 32px
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'left',
+        fontWeight: '600'
+    }).setOrigin(0, 0.5);
+    subjectText.setDepth(DIALOG_DEPTH + 1);
+    
+    // "Your Responsibilities" text (same row as Subject, 50px to the right)
+    const responsibilitiesText = scene.add.text(DIALOG_X + 80, DIALOG_Y + DIALOG_TITLE_Y_OFFSET - 100, 'Your Responsibilities', {
+        fontSize: DIALOG_TITLE_FONT_SIZE,
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'center',
+        fontStyle: 'bold'
+    }).setOrigin(0.5);
+    responsibilitiesText.setDepth(DIALOG_DEPTH + 1);
+    
+    // Main responsibilities text
+    const dialogText = `To verify TINs, you must submit them to the IRS for matching. Once results are received, promptly share them with leadership.
+
+Remember, our system operates in real time — speed is critical. API responses must stay under 30 seconds. If a TIN expires before it's processed, it vanishes forever… and an unhappy customer makes us very unhappy. When we're unhappy, your job may vanish too.
+
+But deliver excellent work, and who knows — a promotion might be waiting for you in the next review cycle.`;
+    
+    const mainText = scene.add.text(DIALOG_X, DIALOG_Y + DIALOG_TEXT_Y_OFFSET + 60, dialogText, {
+        fontSize: DIALOG_TEXT_FONT_SIZE,
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'left',
+        wordWrap: { width: DIALOG_TEXT_MAX_WIDTH }
+    }).setOrigin(0.5);
+    mainText.setDepth(DIALOG_DEPTH + 1);
+    
+    // Accept button at bottom right corner of dialog
+    const buttonX = DIALOG_X + 115;
+    const buttonY = DIALOG_Y + 154;
+    
+    const acceptButton = scene.add.image(buttonX, buttonY, 'button');
+    acceptButton.setScale(0.08);
+    acceptButton.setDepth(DIALOG_DEPTH + 1);
+    
+    // "Accept (Y)" text on the button
+    const buttonText = scene.add.text(buttonX, buttonY, 'Accept (Y)', {
+        fontSize: '14px',
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'center',
+        fontWeight: 'bold'
+    }).setOrigin(0.5);
+    buttonText.setDepth(DIALOG_DEPTH + 2);
+    
+    // Store dialog elements for cleanup
+    scene.welcomeDialogUI = [dialogBg, subjectText, responsibilitiesText, mainText, acceptButton, buttonText];
+}
+
+// Function to show "One More Thing" dialog
+function showOneMoreThingDialog() {
+    const scene = game.scene.scenes[0];
+    
+    // Pause the game while dialog is shown
+    gameIsPaused = true;
+    
+    // Create dialog background
+    const dialogBg = scene.add.image(DIALOG_X, DIALOG_Y, 'dialog');
+    dialogBg.setScale(DIALOG_SCALE);
+    dialogBg.setDepth(DIALOG_DEPTH);
+    
+    // Subject text (same position as before)
+    const subjectText = scene.add.text(DIALOG_X - 400 + 250, DIALOG_Y + DIALOG_TITLE_Y_OFFSET - 100, 'Subject:', {
+        fontSize: '32px', // 21px * 1.5 = 31.5px, rounded to 32px
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'left',
+        fontWeight: '600'
+    }).setOrigin(0, 0.5);
+    subjectText.setDepth(DIALOG_DEPTH + 1);
+    
+    // "One More Thing" text (same row as Subject, 50px to the right)
+    const oneMoreThingText = scene.add.text(DIALOG_X + 80, DIALOG_Y + DIALOG_TITLE_Y_OFFSET - 100, 'One More Thing', {
+        fontSize: DIALOG_TITLE_FONT_SIZE,
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'center',
+        fontStyle: 'bold'
+    }).setOrigin(0.5);
+    oneMoreThingText.setDepth(DIALOG_DEPTH + 1);
+    
+    // Main dialog text
+    const dialogText = `Ah, before we forget! Of course, we don't need to explain this to a professional like you — but some TINs are obviously invalid (e.g., 000000000). You can mark those as bad right away (B) to avoid overloading the government service.
+
+However, if you submit incorrect results… we'll be very, very upset. And when we're upset — well, you know what happens.`;
+    
+    const mainText = scene.add.text(DIALOG_X, DIALOG_Y + DIALOG_TEXT_Y_OFFSET + 20, dialogText, {
+        fontSize: DIALOG_TEXT_FONT_SIZE,
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'left',
+        wordWrap: { width: DIALOG_TEXT_MAX_WIDTH }
+    }).setOrigin(0.5);
+    mainText.setDepth(DIALOG_DEPTH + 1);
+    
+    // Accept button at bottom right corner of dialog
+    const buttonX = DIALOG_X + 115;
+    const buttonY = DIALOG_Y + 154;
+    
+    const acceptButton = scene.add.image(buttonX, buttonY, 'button');
+    acceptButton.setScale(0.08);
+    acceptButton.setDepth(DIALOG_DEPTH + 1);
+    
+    // "Accept (Y)" text on the button
+    const buttonText = scene.add.text(buttonX, buttonY, 'Accept (Y)', {
+        fontSize: '14px',
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'center',
+        fontWeight: 'bold'
+    }).setOrigin(0.5);
+    buttonText.setDepth(DIALOG_DEPTH + 2);
+    
+    // Store dialog elements for cleanup
+    scene.welcomeDialogUI = [dialogBg, subjectText, oneMoreThingText, mainText, acceptButton, buttonText];
+}
+
+// Function to close welcome dialog
+function closeWelcomeDialog() {
+    const scene = game.scene.scenes[0];
+    
+    if (scene.welcomeDialogUI) {
+        scene.welcomeDialogUI.forEach(element => element.destroy());
+        scene.welcomeDialogUI = null;
+    }
+    
+    // Check which dialog step we're on
+    if (dialogStep === 1) {
+        // Show responsibilities dialog next
+        dialogStep = 2;
+        showResponsibilitiesDialog();
+        return;
+    } else if (dialogStep === 2) {
+        // Show one more thing dialog next
+        dialogStep = 3;
+        showOneMoreThingDialog();
+        return;
+    } else {
+        // Close all dialogs and start game
+        welcomeDialogActive = false;
+        gameIsPaused = false;
+        
+        // Start the game timer now that dialogs are closed
+        if (!gameStartTime) {
+            gameStartTime = Date.now();
+        }
+        
+        // Start background music now
+        const gameScene = game.scene.scenes[0];
+        if (gameScene.bgMusic && !gameScene.bgMusic.isPlaying) {
+            gameScene.bgMusic.play();
+        }
+        
+        console.log("All dialogs closed. Game started.");
+    }
 }
 
 // Function to update bribe rate display highlighting
@@ -359,7 +626,7 @@ function showElectionUI() {
     const title = scene.add.text(480, 200, `ELECTION #${electionCount}`, {
         fontSize: '32px',
         fill: '#ffffff',
-        fontFamily: 'Arial',
+        fontFamily: '"Jersey 15", sans-serif',
         align: 'center'
     }).setOrigin(0.5).setDepth(2001);
     
@@ -367,7 +634,7 @@ function showElectionUI() {
     const instructions = scene.add.text(480, 240, 'Press 1, 2, or 3 to vote:', {
         fontSize: '18px',
         fill: '#ffff00',
-        fontFamily: 'Arial',
+        fontFamily: '"Jersey 15", sans-serif',
         align: 'center'
     }).setOrigin(0.5).setDepth(2001);
     
@@ -383,7 +650,7 @@ function showElectionUI() {
         const candidateText = scene.add.text(480, y, `${i + 1}. ${candidate.name}`, {
             fontSize: '20px',
             fill: '#00ff00',
-            fontFamily: 'Arial',
+            fontFamily: '"Jersey 15", sans-serif',
             align: 'center'
         }).setOrigin(0.5).setDepth(2001);
         
@@ -391,7 +658,7 @@ function showElectionUI() {
         const descText = scene.add.text(480, y + 20, candidate.description, {
             fontSize: '14px',
             fill: '#cccccc',
-            fontFamily: 'Arial',
+            fontFamily: '"Jersey 15", sans-serif',
             align: 'center'
         }).setOrigin(0.5).setDepth(2001);
         
@@ -483,7 +750,7 @@ function showElectionResults(winner, votedCandidate) {
     const title = scene.add.text(480, 260, `ELECTION #${electionCount} RESULTS`, {
         fontSize: '32px',
         fill: '#ffffff',
-        fontFamily: 'Arial',
+        fontFamily: '"Jersey 15", sans-serif',
         align: 'center'
     }).setOrigin(0.5).setDepth(2001);
     
@@ -491,7 +758,7 @@ function showElectionResults(winner, votedCandidate) {
     const voteText = scene.add.text(480, 300, `You voted for: ${votedCandidate.name}`, {
         fontSize: '18px',
         fill: '#cccccc',
-        fontFamily: 'Arial',
+        fontFamily: '"Jersey 15", sans-serif',
         align: 'center'
     }).setOrigin(0.5).setDepth(2001);
     
@@ -500,7 +767,7 @@ function showElectionResults(winner, votedCandidate) {
     const winnerText = scene.add.text(480, 340, `${winner.name} WINS!`, {
         fontSize: '28px',
         fill: winnerColor,
-        fontFamily: 'Arial',
+        fontFamily: '"Jersey 15", sans-serif',
         align: 'center'
     }).setOrigin(0.5).setDepth(2001);
     
@@ -508,7 +775,7 @@ function showElectionResults(winner, votedCandidate) {
     const effectText = scene.add.text(480, 380, winner.description, {
         fontSize: '18px',
         fill: '#ffff00',
-        fontFamily: 'Arial',
+        fontFamily: '"Jersey 15", sans-serif',
         align: 'center'
     }).setOrigin(0.5).setDepth(2001);
     
@@ -525,7 +792,7 @@ function showElectionResults(winner, votedCandidate) {
     const detailsText = scene.add.text(480, 410, effectDetails, {
         fontSize: '16px',
         fill: '#cccccc',
-        fontFamily: 'Arial',
+        fontFamily: '"Jersey 15", sans-serif',
         align: 'center'
     }).setOrigin(0.5).setDepth(2001);
     
@@ -533,7 +800,7 @@ function showElectionResults(winner, votedCandidate) {
     const instructions = scene.add.text(480, 450, 'Press P to continue', {
         fontSize: '18px',
         fill: '#ffffff',
-        fontFamily: 'Arial',
+        fontFamily: '"Jersey 15", sans-serif',
         align: 'center'
     }).setOrigin(0.5).setDepth(2001);
     
@@ -678,6 +945,12 @@ function preload() {
     // Load background music
     this.load.audio('bgMusic', 'assets/audio/music/Travis_eulogy.mp3');
     
+    // Load dialog UI
+    this.load.image('dialog', 'assets/images/ui/dialog.png');
+    this.load.image('button', 'assets/images/ui/button.png');
+    
+    // No need for external font loading script
+    
     // Add error event listeners
     this.load.on('loaderror', function (event) {
         console.log('Load error:', event);
@@ -700,9 +973,9 @@ function create() {
     gameScene = this;
     
     // DEBUG: Level selection at start
-    const debugLevel = prompt("DEBUG: Choose starting level (0=Junior, 1=Mid, 2=Senior, 3=Architect, 4=CEO) or press Cancel for Junior:");
+    const debugLevel = prompt("DEBUG: Choose starting level (0=Junior, 1=Mid, 2=Senior) or press Cancel for Junior:");
     if (debugLevel !== null && !isNaN(debugLevel)) {
-        const chosenLevel = Math.max(0, Math.min(4, parseInt(debugLevel)));
+        const chosenLevel = Math.max(0, Math.min(2, parseInt(debugLevel)));
         level = chosenLevel;
         happiness = levels[level].initMood;
         console.log(`DEBUG: Starting at ${levels[level].name} level with ${happiness} mood`);
@@ -938,18 +1211,23 @@ function create() {
     
     
     
-    // Record game start time
-    gameStartTime = Date.now();
+    // Don't record game start time yet - wait for dialog to be dismissed
+    // gameStartTime will be set in closeWelcomeDialog()
     
     // Initialize bribe display
     updateBribeDisplay();
     
-    // Create and start background music
+    // Show welcome dialog if this is the first time
+    if (welcomeDialogActive) {
+        showWelcomeDialog();
+    }
+    
+    // Create background music (but don't start it yet - wait for dialog to be dismissed)
     this.bgMusic = this.sound.add('bgMusic', { 
         volume: BACKGROUND_MUSIC_VOLUME, 
         loop: true 
     });
-    this.bgMusic.play();
+    // Music will be started in closeWelcomeDialog()
     
     // Set up page visibility API to pause/resume music when tab is active/inactive
     document.addEventListener('visibilitychange', () => {
@@ -977,6 +1255,7 @@ function create() {
     keys.two = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO);
     keys.three = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE);
     keys.t = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.T); // For testing elections
+    keys.y = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Y); // For dismissing dialogs
     
     // Set up dynamic box spawning timer (updates every second)
     this.time.addEvent({
@@ -1057,7 +1336,7 @@ function spawnBox() {
     const label = this.add.text(startX, paperY, tin, {
         fontSize: '16px',
         fill: '#000000',
-        fontFamily: 'Arial',
+        fontFamily: '"Jersey 15", sans-serif',
         align: 'center'
     }).setOrigin(0.5);
     
@@ -1086,11 +1365,9 @@ function spawnBox() {
         ease: 'Linear'
     });
     
-    // Check if this box should be pre-validated (for Architect+)
+    // Check if this box should be pre-validated (Senior level doesn't have pre-validation)
     let isPreValidated = false;
-    if (getCurrentLevel().preValidated && Math.random() < 0.3) { // 30% chance for Architect+
-        isPreValidated = true;
-    }
+    // Pre-validation removed since no levels have it anymore
     
     // Store box data
     const boxData = {
@@ -1303,7 +1580,7 @@ function submitBox() {
         let payment = 10; // Base payment
         if (level === 0) payment = 100; // Junior gets $100
         else if (level === 1) payment = 500; // Mid gets $500  
-        else if (level >= 2) payment = 1000; // Senior+ gets $1000
+        else if (level >= 2) payment = 1000; // Senior gets $1000
         
         // Apply election payment bonus effect
         payment = Math.round(payment * activeElectionEffects.paymentBonus);
@@ -1352,7 +1629,7 @@ function submitAllBoxes() {
             let payment = 10;
             if (level === 0) payment = 100; // Junior gets $100
             else if (level === 1) payment = 500; // Mid gets $500  
-            else if (level >= 2) payment = 1000; // Senior+ gets $1000
+            else if (level >= 2) payment = 1000; // Senior gets $1000
             
             // Apply election payment bonus effect
             payment = Math.round(payment * activeElectionEffects.paymentBonus);
@@ -1539,10 +1816,10 @@ function bribeIRS() {
         return;
     }
     
-    // Calculate cost with 2x multiplier for Senior+ levels
+    // Calculate cost with 2x multiplier for Senior level
     const currentLevel = getCurrentLevel();
     const baseCost = currentLevel.bribeCost;
-    const multiplier = level >= 2 ? 2 : 1; // Senior+ pay 2x
+    const multiplier = level >= 2 ? 2 : 1; // Senior pays 2x
     const totalCost = baseCost * multiplier;
     
     if (money < totalCost) {
@@ -1595,6 +1872,12 @@ function bribeIRS() {
 
 // Update function - main game loop
 function update() {
+    // Handle Y key to dismiss welcome dialog
+    if (Phaser.Input.Keyboard.JustDown(keys.y) && welcomeDialogActive) {
+        closeWelcomeDialog();
+        return;
+    }
+    
     // Handle pause toggle and election results
     if (Phaser.Input.Keyboard.JustDown(keys.p)) {
         // Check if we're showing election results
@@ -1614,14 +1897,14 @@ function update() {
         }
     }
     
-    // Skip all game logic if paused (except during elections and results)
-    if (gameIsPaused && !isElectionActive && !this.electionResultsUI) {
+    // Skip all game logic if paused (except during elections, results, and welcome dialog)
+    if (gameIsPaused && !isElectionActive && !this.electionResultsUI && !welcomeDialogActive) {
         // Show pause indicator
         if (!this.pauseText) {
             this.pauseText = this.add.text(480, 360, 'PAUSED\nPress P to Resume', {
                 fontSize: PAUSE_TEXT_FONT_SIZE,
                 fill: '#ffffff',
-                fontFamily: 'Arial',
+                fontFamily: '"Jersey 15", sans-serif',
                 align: 'center',
                 backgroundColor: '#000000',
                 padding: { x: 20, y: 20 }
@@ -1661,6 +1944,11 @@ function update() {
         }
     }
     */
+    
+    // Skip player movement and interactions if welcome dialog is active
+    if (welcomeDialogActive) {
+        return;
+    }
     
     // Player movement with level bonus
     const baseSpeed = BASE_PLAYER_SPEED; // Increased from 200 (1.5x faster)
