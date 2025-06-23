@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Jersey+15&display=swap" rel="stylesheet">
+    <link rel="icon" href="assets/icon.png" type="image/x-icon">
     
     <style>
         body {
@@ -28,40 +29,48 @@
             justify-content: space-between;
             align-items: center;
             padding: 10px 20px;
-            background-color: #34495e;
+            background-color: #EACBA0;
             border-radius: 8px 8px 0 0;
-            border: 2px solid #34495e;
+            border: 2px solid #EACBA0;
             border-bottom: none;
         }
         #game-title {
             font-size: 29px;
-            color: #ecf0f1;
+            color: #56422D;
             margin: 0;
             font-family: 'Jersey 15', monospace;
         }
         #game-stats {
             display: flex;
-            gap: 30px;
+            gap: 15px;
             align-items: center;
         }
         #money-display {
             font-size: 19px;
-            color: #00ff00;
+            color: #56422D;
             font-family: 'Jersey 15', monospace;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 2px;
         }
         #level-display {
             font-size: 19px;
-            color: #ff8800;
+            color: #56422D;
             font-family: 'Jersey 15', monospace;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 2px;
         }
         #happiness-display {
             font-size: 19px;
-            color: #00ffff;
+            color: #56422D;
             font-family: 'Jersey 15', monospace;
         }
         #timer-display {
             font-size: 19px;
-            color: #ffff00;
+            color: #56422D;
             font-family: 'Jersey 15', monospace;
         }
         #game-container {
@@ -124,9 +133,15 @@
     <div id="game-header">
         <h1 id="game-title">TIN Matching Service</h1>
         <div id="game-stats">
-            <div id="money-display">Money: $0</div>
-            <div id="level-display">Level: Junior</div>
-            <div id="happiness-display">Mood: 50</div>
+            <div id="money-display">
+                <img src="assets/images/ui/coin-indicator.png" alt="Money Icon" style="width: 24px; vertical-align: middle;">
+                <div id="money-display-value">0</div>
+            </div>
+            <div id="level-display">
+                <img src="assets/images/ui/level-indicator.png" alt="Level Icon" style="width: 24px; vertical-align: middle;">
+                <div id="level-display-value">Junior</div>
+            </div>
+            <div id="happiness-display"><img id="happiness-display-value" src="assets/images/ui/neutral-mood.png" alt="Neutral Mood" style="width: 24px; vertical-align: middle;"></div>
             <div id="timer-display">00:00</div>
         </div>
     </div>

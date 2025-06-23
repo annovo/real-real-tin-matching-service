@@ -79,9 +79,9 @@ const BRIBE_COST_MULTIPLIER_THRESHOLD = 2; // Senior level
 const LEVEL_PAYMENTS = [100, 500, 1000];
 
 // Colors (Tint Values)
-const VALID_BOX_TINT = 0x00ff00; // Green
-const INVALID_BOX_TINT = 0xff0000; // Red  
-const ZERO_CARD_TINT = 0xff0000; // Red
+const VALID_BOX_TINT = 0x274e13; // Green
+const INVALID_BOX_TINT = 0x831a1a; // Red  
+const ZERO_CARD_TINT = 0x831a1a; // Red
 const BRIBE_BORDER_TINT = 0xffff00; // Yellow
 
 // Depth Values (Z-Index Map) - Floor at bottom, everything else above
@@ -257,8 +257,8 @@ let activeElectionEffects = {
 // Level system (mood-based progression)
 const levels = [
     { name: 'Junior', initMood: 50, speedBonus: 0, carryCapacity: 1, irsSlots: 1, preValidated: false, moodGainRate: 5.0, moodLossRate: 1.0, spawnSpeedMultiplier: 0.95, bribeCost: 500 },
-    { name: 'Mid', initMood: 35, speedBonus: 100, carryCapacity: 2, irsSlots: 1, preValidated: false, moodGainRate: 3.5, moodLossRate: 1.2, spawnSpeedMultiplier: 1.5, bribeCost: 500 },
-    { name: 'Senior', initMood: 25, speedBonus: 100, carryCapacity: 2, irsSlots: 2, preValidated: false, moodGainRate: 2.5, moodLossRate: 1.4, spawnSpeedMultiplier: 1.71, bribeCost: 500 }
+    { name: 'Mid', initMood: 35, speedBonus: 100, carryCapacity: 1, irsSlots: 2, preValidated: false, moodGainRate: 3.5, moodLossRate: 1.2, spawnSpeedMultiplier: 1.5, bribeCost: 1500 },
+    { name: 'Senior', initMood: 25, speedBonus: 100, carryCapacity: 1, irsSlots: 2, preValidated: true, moodGainRate: 2.5, moodLossRate: 1.4, spawnSpeedMultiplier: 1.71, bribeCost: 5500 }
 ];
 
 // Function to get current level info
@@ -291,7 +291,7 @@ function checkPromotion() {
         const newLevel = getCurrentLevel();
         happiness = newLevel.initMood; // Reset to new level's starting mood
         console.log(`PROMOTION! You are now ${newLevel.name}! Mood reset to ${happiness}.`);
-        document.getElementById('level-display').textContent = `Level: ${newLevel.name}`;
+        document.getElementById('level-display-value').textContent = `${newLevel.name}`;
         updateBribeDisplay(); // Update bribe rate display
         updateHappiness(0); // Update display without changing value
         return true;
@@ -690,18 +690,18 @@ function updateHappiness(change) {
     happiness = Math.max(-100, Math.min(100, happiness + actualChange));
     
     // Update display with color coding
-    const display = document.getElementById('happiness-display');
-    display.textContent = `Mood: ${Math.round(happiness)}`;
+    const display = document.getElementById('happiness-display-value');
     
     // Color coding based on happiness level
     if (happiness >= 50) {
-        display.style.color = '#00ff00'; // Green for happy
+        display.src = "assets/images/ui/happy-mood.png"; 
+        display.alt = "Happy Mood";
     } else if (happiness >= 0) {
-        display.style.color = '#00ffff'; // Cyan for neutral
-    } else if (happiness >= -50) {
-        display.style.color = '#ffff00'; // Yellow for unhappy
+        display.src = "assets/images/ui/neutral-mood.png"; 
+        display.alt = "Neutral Mood";
     } else {
-        display.style.color = '#ff0000'; // Red for very unhappy
+        display.src = "assets/images/ui/upset-mood.png"; 
+        display.alt = "Upset Mood";
     }
     
     // Check for game over
@@ -1105,8 +1105,7 @@ function create() {
     //     level = chosenLevel;
     //     happiness = levels[level].initMood;
     //     console.log(`DEBUG: Starting at ${levels[level].name} level with ${happiness} mood`);
-    //     document.getElementById('level-display').textContent = `Level: ${levels[level].name}`;
-    //     document.getElementById('happiness-display').textContent = `Mood: ${happiness}`;
+    //     document.getElementById('level-display-value').textContent = `${levels[level].name}`;
     //     updateBribeDisplay(); // Update bribe rate display for debug level
     // }
     // Create tiled background with proper borders
@@ -1391,6 +1390,7 @@ function create() {
     keys.three = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE);
     keys.t = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.T); // For testing elections
     keys.y = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Y); // For dismissing dialogs
+    keys.esc = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC); // For dismissing dialogs
     
     // Set up dynamic box spawning timer (updates every second)
     this.time.addEvent({
@@ -1469,12 +1469,14 @@ function spawnBox() {
     const boxId = boxIdCounter++;
     const tin = generateRandomTIN();
     const validity = determineTINValidity(tin); // Determine validity at spawn
-    const label = this.add.text(startX, paperY, tin, {
-        fontSize: '16px',
-        fill: '#000000',
+    const label = this.add
+      .text(startX, paperY, tin, {
+        fontSize: "16px",
+        fill: "#56422D",
         fontFamily: '"Jersey 15", sans-serif',
-        align: 'center'
-    }).setOrigin(0.5);
+        align: "center",
+      })
+      .setOrigin(0.5);
     label.setDepth(TIN_PAPER_DEPTH + 1); // Text above the paper
     
     // Animate the paper sliding to the end of the belt
@@ -1741,7 +1743,7 @@ function submitBox() {
     }
     
     // Update money display
-    document.getElementById('money-display').textContent = `Money: $${money}`;
+    document.getElementById('money-display-value').textContent = `${money}`;
     
     // Remove the submitted box from carried boxes
     carriedBoxes.splice(processedIndex, 1);
@@ -1805,7 +1807,7 @@ function submitAllBoxes() {
     }
     
     // Update displays
-    document.getElementById('money-display').textContent = `Money: $${money}`;
+    document.getElementById('money-display-value').textContent = `${money}`;
     
     console.log(`Submitted ${processedBoxes.length} boxes, earned $${totalEarned} total`);
 }
@@ -1967,39 +1969,45 @@ function bribeIRS() {
     console.log(`Premium processing enabled! Next ${premiumProcessingUses} TINs will be processed instantly for $${baseCost}`);
     
     // Update money display
-    document.getElementById('money-display').textContent = `Money: $${money}`;
+    document.getElementById('money-display-value').textContent = `${money}`;
 }
 
 // Update function - main game loop
 function update() {
     // CRITICAL: Handle dialog dismissal FIRST before any other logic
     
-    // Handle Y key to dismiss welcome dialog
-    if (Phaser.Input.Keyboard.JustDown(keys.y) && welcomeDialogActive) {
-        console.log("Y pressed - closing welcome dialog");
+    // Handle Y and ESC keys to dismiss welcome dialog
+    if ((Phaser.Input.Keyboard.JustDown(keys.y) || Phaser.Input.Keyboard.JustDown(keys.esc)) && welcomeDialogActive) {
+        console.log("Y/ESC pressed - closing welcome dialog");
         closeWelcomeDialog();
         return;
     }
     
-    // Handle Y key to dismiss premium processing dialog
+    // Handle Y and ESC keys to dismiss premium processing dialog
     if (premiumProcessingDialogActive) {
-        // Try different methods to detect Y key press
-        if (Phaser.Input.Keyboard.JustDown(keys.y)) {
-            console.log("Y JustDown detected - closing dialog");
-            closePremiumProcessingDialog();
-            return;
+        // Try different methods to detect Y and ESC keys press
+        if (
+          Phaser.Input.Keyboard.JustDown(keys.y) ||
+          Phaser.Input.Keyboard.JustDown(keys.esc)
+        ) {
+          console.log("Y/ESC JustDown detected - closing dialog");
+          closePremiumProcessingDialog();
+          return;
         }
         
-        // Alternative: Check if Y key was just pressed using different method
-        if (keys.y.isDown && !keys.y.wasDown) {
-            console.log("Y key state change detected - closing dialog");
-            closePremiumProcessingDialog();
-            return;
+        // Alternative: Check if Y/ESC key was just pressed using different method
+        if (
+          (keys.y.isDown && !keys.y.wasDown) ||
+          (keys.esc.isDown && !keys.esc.wasDown)
+        ) {
+          console.log("Y/ESC key state change detected - closing dialog");
+          closePremiumProcessingDialog();
+          return;
         }
         
         // Alternative: Use direct key event listening
-        if (keys.y.isDown) {
-            console.log("Y key is currently pressed - closing dialog");
+        if (keys.y.isDown || keys.esc.isDown) {
+            console.log("Y/ESC key is currently pressed - closing dialog");
             closePremiumProcessingDialog();
             return;
         }

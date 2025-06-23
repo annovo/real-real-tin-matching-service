@@ -168,10 +168,11 @@
   - TINs numbers should not overlap onto each other
   - Add dialog for level change
   - Add dialog for game over
-  - Allow dismissing dialogs on esc press
   - Add guide / help icon somewhere?
   - TINs should be spit out in slightly different directions
-  - Chnage good/bad tin colors
+  - Dont allow premium processing if one is already bought (increase bribe for higher levels)
+  - E/Q keys explained or dropped
+
 
 ## Phase 4: Advanced Features
 
