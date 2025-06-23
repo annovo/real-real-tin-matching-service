@@ -146,6 +146,10 @@ const WINDOW_X = 120; // Position from left edge (moved 50px more right)
 const WINDOW_Y = 50; // Position from top edge (~50px from top)
 const WINDOW_SCALE = 0.432; // 1.2x bigger again (0.36 * 1.2 = 0.432)
 const WINDOW_DEPTH = 4; // Above walls but below other objects
+const AXBIT_LOGO_X = 370; // Position from left edge
+const AXBIT_LOGO_Y = 70; // Position from top edge
+const AXBIT_LOGO_SCALE = 0.15; // 1.5x bigger (0.1667 * 1.5 = 0.25)
+const AXBIT_LOGO_DEPTH = 4; // Above walls, below other objects
 const TABLES_X = GAME_WIDTH - 160; // Moved 20px to the right
 const TABLES_Y = 95; // Moved up 5px more (was 100, now 95 from top edge)
 const TABLES_SCALE = 0.6; // 2x bigger (was 0.3, now 0.6)
@@ -200,7 +204,7 @@ let processingBoxes = [];
 let processingStatus;
 let gameScene; // Reference to the current scene for adding objects
 let returnStation;
-let money = 400;
+let money = 0;
 let gameStartTime;
 let level = 0;
 let happiness = 50; // Start at Junior's initial mood
@@ -1095,34 +1099,20 @@ function create() {
     gameScene = this;
     
     // DEBUG: Level selection at start
-    const debugLevel = prompt("DEBUG: Choose starting level (0=Junior, 1=Mid, 2=Senior) or press Cancel for Junior:");
-    if (debugLevel !== null && !isNaN(debugLevel)) {
-        const chosenLevel = Math.max(0, Math.min(2, parseInt(debugLevel)));
-        level = chosenLevel;
-        happiness = levels[level].initMood;
-        console.log(`DEBUG: Starting at ${levels[level].name} level with ${happiness} mood`);
-        document.getElementById('level-display').textContent = `Level: ${levels[level].name}`;
-        document.getElementById('happiness-display').textContent = `Mood: ${happiness}`;
-        updateBribeDisplay(); // Update bribe rate display for debug level
-    }
+    // const debugLevel = prompt("DEBUG: Choose starting level (0=Junior, 1=Mid, 2=Senior) or press Cancel for Junior:");
+    // if (debugLevel !== null && !isNaN(debugLevel)) {
+    //     const chosenLevel = Math.max(0, Math.min(2, parseInt(debugLevel)));
+    //     level = chosenLevel;
+    //     happiness = levels[level].initMood;
+    //     console.log(`DEBUG: Starting at ${levels[level].name} level with ${happiness} mood`);
+    //     document.getElementById('level-display').textContent = `Level: ${levels[level].name}`;
+    //     document.getElementById('happiness-display').textContent = `Mood: ${happiness}`;
+    //     updateBribeDisplay(); // Update bribe rate display for debug level
+    // }
     // Create tiled background with proper borders
     const tileSize = TILE_SIZE; // 80x80 tiles (5x bigger)
     const tilesX = Math.ceil(GAME_WIDTH / tileSize); // Number of tiles needed horizontally
     const tilesY = Math.ceil(GAME_HEIGHT / tileSize); // Number of tiles needed vertically
-    
-    // Tile indices (converted from 1-based row/col to 0-based array index)
-    // Formula: index = (row - 1) * 27 + (col - 1)
-    const tiles = {
-        topLeft: (14 - 1) * 27 + (13 - 1),      // Row 14, Col 13 (-1)
-        topEdge: (18 - 1) * 27 + (11 - 1),      // Row 18, Col 11 (-1)  
-        topRight: (14 - 1) * 27 + (14 - 1),     // Row 14, Col 14 (-1)
-        rightEdge: (15 - 1) * 27 + (14 - 1),    // Row 15, Col 14 (-1)
-        bottomRight: (17 - 1) * 27 + (14 - 1),  // Row 17, Col 14 (-1)
-        bottomEdge: (18 - 1) * 27 + (11 - 1),   // Row 18, Col 11 (-1)
-        bottomLeft: (17 - 1) * 27 + (13 - 1),   // Row 17, Col 13 (-1)
-        leftEdge: (15 - 1) * 27 + (13 - 1),     // Row 15, Col 13 (-1)
-        fill: 24                                 // Original floor tile (index 24)
-    };
     
     // Create the game world
         
@@ -1221,15 +1211,22 @@ function create() {
             }
         }
         
-        // Add window on the left wall
+        // Add axbit logo on the wall
         try {
+            const axbitLogo = this.add.image(AXBIT_LOGO_X, AXBIT_LOGO_Y, 'axBitLogo');
+            axbitLogo.setScale(AXBIT_LOGO_SCALE);
+            axbitLogo.setDepth(AXBIT_LOGO_DEPTH); 
+        } catch (error) {
+            console.warn('Axbit logo asset not found');
+        }
+
+          // Add window on the left wall
+          try {
             const window = this.add.image(WINDOW_X, WINDOW_Y, 'window');
             window.setScale(WINDOW_SCALE);
             window.setDepth(WINDOW_DEPTH); // Above walls but below other objects
         } catch (error) {
-            console.warn('Window asset not found, using fallback');
-            const fallbackWindow = this.add.rectangle(WINDOW_X, WINDOW_Y, 60, 80, WINDOW_FALLBACK_COLOR);
-            fallbackWindow.setDepth(WINDOW_DEPTH);
+            console.warn('Window asset not found');
         }
         
         // Add tables on the left side, aligned with wall lining
