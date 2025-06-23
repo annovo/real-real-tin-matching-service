@@ -43,7 +43,7 @@ const WALL_TILE_SPACING = 20;
 const BELT_Y = 200;
 const BELT_START_X = 100; // Belt start position (moved 100px left)
 const IRS_MACHINE_X = 800; // Adjusted for new width
-const IRS_MACHINE_Y = 300;
+const IRS_MACHINE_Y = 400;
 const RETURN_STATION_X = 420;
 const RETURN_STATION_Y = 660;
 const PUT_HERE_TEXT_X = 420;
@@ -91,6 +91,7 @@ const WALL_LINING_DEPTH = 2;       // Above wallpaper
 const VERTICAL_WALLS_DEPTH = 3;    // Above lining
 const TOP_EDGE_DEPTH = 5;          // Above walls
 const STATION_DEPTH = 6;           // Above floor and walls
+const TIN_PAPER_DEPTH = 7;         // Above stations and text
 const PLAYER_DEPTH = 10;           // Above stations and walls
 const THINKING_DOTS_DEPTH = 11;    // Above player
 const PAUSE_TEXT_DEPTH = 1000;     // UI layer
@@ -194,11 +195,12 @@ let boxes = [];
 let boxIdCounter = 1;
 let carriedBoxes = [];
 let irsMachine;
+let phone; // Phone sprite reference for tint updates
 let processingBoxes = [];
 let processingStatus;
 let gameScene; // Reference to the current scene for adding objects
 let returnStation;
-let money = 0;
+let money = 400;
 let gameStartTime;
 let level = 0;
 let happiness = 50; // Start at Junior's initial mood
@@ -211,6 +213,10 @@ let nextElectionTime = 30000; // 30 seconds in milliseconds
 let isElectionActive = false; // Track if election is currently happening
 let welcomeDialogActive = true; // Track if welcome dialog should be shown
 let dialogStep = 1; // Track which dialog step we're on (1 = hired, 2 = responsibilities, 3 = one more thing)
+let briberateText; // Reference to the bribe rate text displayed above the phone
+let premiumProcessingDialogShown = false; // Track if premium processing dialog has been shown
+let premiumProcessingDialogActive = false; // Track if premium processing dialog is currently active
+let premiumProcessingUses = 0; // Track how many instant processing uses are available
 
 // List of obviously bad TINs that should always be invalid
 const badTINs = ['000000000', '111111111', '999999999', '123456789'];
@@ -246,9 +252,9 @@ let activeElectionEffects = {
 
 // Level system (mood-based progression)
 const levels = [
-    { name: 'Junior', initMood: 50, speedBonus: 0, carryCapacity: 1, irsSlots: 1, preValidated: false, moodGainRate: 5.0, moodLossRate: 1.0, spawnSpeedMultiplier: 0.95, bribeCost: 200 },
+    { name: 'Junior', initMood: 50, speedBonus: 0, carryCapacity: 1, irsSlots: 1, preValidated: false, moodGainRate: 5.0, moodLossRate: 1.0, spawnSpeedMultiplier: 0.95, bribeCost: 500 },
     { name: 'Mid', initMood: 35, speedBonus: 100, carryCapacity: 2, irsSlots: 1, preValidated: false, moodGainRate: 3.5, moodLossRate: 1.2, spawnSpeedMultiplier: 1.5, bribeCost: 500 },
-    { name: 'Senior', initMood: 25, speedBonus: 100, carryCapacity: 2, irsSlots: 2, preValidated: false, moodGainRate: 2.5, moodLossRate: 1.4, spawnSpeedMultiplier: 1.71, bribeCost: 2000 }
+    { name: 'Senior', initMood: 25, speedBonus: 100, carryCapacity: 2, irsSlots: 2, preValidated: false, moodGainRate: 2.5, moodLossRate: 1.4, spawnSpeedMultiplier: 1.71, bribeCost: 500 }
 ];
 
 // Function to get current level info
@@ -540,6 +546,115 @@ function closeWelcomeDialog() {
     }
 }
 
+// Function to show premium processing dialog
+function showPremiumProcessingDialog() {
+    const scene = game.scene.scenes[0];
+    
+    console.log("showPremiumProcessingDialog called - setting premiumProcessingDialogActive to true");
+    // Pause the game while dialog is shown
+    gameIsPaused = true;
+    premiumProcessingDialogActive = true;
+    
+    // Create dialog background
+    const dialogBg = scene.add.image(DIALOG_X, DIALOG_Y, 'dialog');
+    dialogBg.setScale(DIALOG_SCALE);
+    dialogBg.setDepth(DIALOG_DEPTH);
+    
+    // Subject text
+    const subjectText = scene.add.text(DIALOG_X - 400 + 250, DIALOG_Y + DIALOG_TITLE_Y_OFFSET - 100, 'Subject:', {
+        fontSize: '32px',
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'left',
+        fontWeight: '600'
+    }).setOrigin(0, 0.5);
+    subjectText.setDepth(DIALOG_DEPTH + 1);
+    
+    // "Premium Processing" text
+    const premiumText = scene.add.text(DIALOG_X + 80, DIALOG_Y + DIALOG_TITLE_Y_OFFSET - 100, 'Premium Processing', {
+        fontSize: DIALOG_TITLE_FONT_SIZE,
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'center',
+        fontStyle: 'bold'
+    }).setOrigin(0.5);
+    premiumText.setDepth(DIALOG_DEPTH + 1);
+    
+    // Main dialog text
+    const dialogText = `Looks like you're doing well — nice work! You've probably noticed the IRS can be a bit… slow. Now that you've earned some trust, you're eligible for premium processing to speed things up.
+
+It'll cost you extra ($500), but what a joy it is to get your results instantly and boost our OKRs! Just call (C) our government contact, Lois, and he'll enable premium processing for the next 5 TINs you submit.`;
+    
+    const mainText = scene.add.text(DIALOG_X, DIALOG_Y + DIALOG_TEXT_Y_OFFSET + 30, dialogText, {
+        fontSize: DIALOG_TEXT_FONT_SIZE,
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'left',
+        wordWrap: { width: DIALOG_TEXT_MAX_WIDTH }
+    }).setOrigin(0.5);
+    mainText.setDepth(DIALOG_DEPTH + 1);
+    
+    // Accept button at bottom right corner of dialog
+    const buttonX = DIALOG_X + 115;
+    const buttonY = DIALOG_Y + 154;
+    
+    const acceptButton = scene.add.image(buttonX, buttonY, 'button');
+    acceptButton.setScale(0.08);
+    acceptButton.setDepth(DIALOG_DEPTH + 1);
+    
+    // "Accept (Y)" text on the button
+    const buttonText = scene.add.text(buttonX, buttonY, 'Accept (Y)', {
+        fontSize: '14px',
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'center',
+        fontWeight: 'bold'
+    }).setOrigin(0.5);
+    buttonText.setDepth(DIALOG_DEPTH + 2);
+    
+    // Store dialog elements for cleanup
+    scene.premiumDialogUI = [dialogBg, subjectText, premiumText, mainText, acceptButton, buttonText];
+}
+
+// Function to close premium processing dialog
+function closePremiumProcessingDialog() {
+    const scene = game.scene.scenes[0];
+    
+    console.log("closePremiumProcessingDialog called - setting premiumProcessingDialogActive to false");
+    if (scene.premiumDialogUI) {
+        scene.premiumDialogUI.forEach(element => element.destroy());
+        scene.premiumDialogUI = null;
+    }
+    
+    // Resume game
+    premiumProcessingDialogActive = false;
+    gameIsPaused = false;
+}
+
+// Function to update phone tint based on money
+function updatePhoneTint() {
+    if (phone) {
+        const currentLevel = getCurrentLevel();
+        const bribeCost = currentLevel.bribeCost;
+        
+        if (money >= bribeCost) {
+            // Remove tint (show original colors) when player has enough money
+            phone.clearTint();
+        } else {
+            // Apply grey tint when player doesn't have enough money
+            phone.setTint(0x888888);
+        }
+    }
+}
+
+// Function to update premium processing display
+function updatePremiumProcessingDisplay() {
+    if (briberateText) {
+        const currentLevel = getCurrentLevel();
+        briberateText.setText(`$${currentLevel.bribeCost}`);
+    }
+}
+
 // Function to update bribe rate display highlighting
 function updateBribeDisplay() {
     // Remove current-level class from all levels
@@ -551,6 +666,9 @@ function updateBribeDisplay() {
     if (currentLevelElement) {
         currentLevelElement.classList.add('current-level');
     }
+    
+    // Update the in-game bribe rate text above the phone
+    updatePremiumProcessingDisplay();
 }
 
 // Function to update happiness and display
@@ -901,6 +1019,9 @@ function preload() {
     // Load IRS machine image
     this.load.image('irsMachine', 'assets/images/objects/irs-machine.png');
     
+    // Load phone image
+    this.load.image('phone', 'assets/images/objects/phone.png');
+    
     // Load thinking dot for processing animation
     this.load.image('thinkingDot', 'assets/images/effects/thinking-dot.png');
     
@@ -948,6 +1069,7 @@ function preload() {
     // Load dialog UI
     this.load.image('dialog', 'assets/images/ui/dialog.png');
     this.load.image('button', 'assets/images/ui/button.png');
+    this.load.image('axBitLogo', 'assets/images/ui/axBit-logo.png');
     
     // No need for external font loading script
     
@@ -1173,6 +1295,22 @@ function create() {
     irsMachine = this.add.image(IRS_MACHINE_X, IRS_MACHINE_Y, 'irsMachine');
     irsMachine.setScale(IRS_MACHINE_SCALE);
     
+    // Add phone 100px above the IRS machine
+    phone = this.add.image(IRS_MACHINE_X - 14, IRS_MACHINE_Y - 120, 'phone');
+    phone.setScale(IRS_MACHINE_SCALE * 0.35); // 2x smaller
+    phone.setTint(0x888888); // Grey tint (default when no money)
+    updatePhoneTint(); // Set initial tint based on starting money
+    
+    // Add bribe rate text above the phone
+    const currentLevel = getCurrentLevel();
+    briberateText = this.add.text(IRS_MACHINE_X - 13, IRS_MACHINE_Y - 155, `$${currentLevel.bribeCost}`, {
+        fontSize: '16px',
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'center'
+    }).setOrigin(0.5);
+    briberateText.setDepth(STATION_DEPTH);
+    
     
     // Create Return Station
     returnStation = this.add.image(RETURN_STATION_X, RETURN_STATION_Y, 'resultsStation');
@@ -1249,7 +1387,7 @@ function create() {
     keys.e = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     keys.q = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
     keys.space = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-    keys.p = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P);
+    keys.c = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C);
     keys.b = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.B);
     keys.one = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE);
     keys.two = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO);
@@ -1328,6 +1466,7 @@ function spawnBox() {
     const paperY = beltY + PAPER_Y_OFFSET; // 10px higher than belt
     const box = this.add.image(startX, paperY, 'tinPaper');
     box.setScale(TIN_PAPER_SCALE); // 1.5x smaller
+    box.setDepth(TIN_PAPER_DEPTH); // Above wallpaper and station text
     
     // Add TIN number in the middle of the paper
     const boxId = boxIdCounter++;
@@ -1339,6 +1478,7 @@ function spawnBox() {
         fontFamily: '"Jersey 15", sans-serif',
         align: 'center'
     }).setOrigin(0.5);
+    label.setDepth(TIN_PAPER_DEPTH + 1); // Text above the paper
     
     // Animate the paper sliding to the end of the belt
     const endX = this.beltRightX - 40;
@@ -1586,6 +1726,15 @@ function submitBox() {
         payment = Math.round(payment * activeElectionEffects.paymentBonus);
         
         money += payment;
+        updatePhoneTint(); // Update phone tint based on new money amount
+        
+        // Check if player reached $500 for first time
+        if (money >= 500 && !premiumProcessingDialogShown) {
+            premiumProcessingDialogShown = true;
+            console.log("Showing premium processing dialog - money:", money);
+            showPremiumProcessingDialog();
+        }
+        
         updateHappiness(2); // Increase happiness for correct results
         console.log(`CORRECT! Box #${processedBox.id} TIN: ${processedBox.tin} - Player: ${playerResult}, Correct: ${correctResult}. Paid $${payment}. Mood +2.`);
     } else {
@@ -1636,6 +1785,15 @@ function submitAllBoxes() {
             
             money += payment;
             totalEarned += payment;
+            updatePhoneTint(); // Update phone tint based on new money amount
+            
+            // Check if player reached $500 for first time
+            if (money >= 500 && !premiumProcessingDialogShown) {
+                premiumProcessingDialogShown = true;
+                console.log("Showing premium processing dialog - money:", money);
+                showPremiumProcessingDialog();
+            }
+            
             updateHappiness(2); // Increase happiness for correct results
             console.log(`CORRECT! Box #${box.id} TIN: ${box.tin} - Paid $${payment}. Mood +2.`);
         } else {
@@ -1717,7 +1875,18 @@ function processAllBoxes() {
         console.log(`Started processing box #${boxToProcess.id} in slot ${slotIndex + 1}/${maxSlots}`);
         
         // Set processing timer for this box
-        const processingTime = getProcessingTime();
+        let processingTime;
+        
+        // Check if premium processing is available
+        if (premiumProcessingUses > 0) {
+            processingTime = 100; // Instant processing (100ms for visual effect)
+            premiumProcessingUses--; // Use one premium processing
+            updatePremiumProcessingDisplay(); // Update the display
+            console.log(`Premium processing used! ${premiumProcessingUses} uses remaining`);
+        } else {
+            processingTime = getProcessingTime(); // Normal processing time
+        }
+        
         boxToProcess.processingStartTime = Date.now();
         boxToProcess.originalProcessingTime = processingTime;
         
@@ -1781,90 +1950,24 @@ function use0Card() {
     console.log("No boxes available for 0-card assignment");
 }
 
-// Function to bribe IRS for faster processing (cycles through boxes individually)
+// Function to enable premium processing for next 5 TINs
 function bribeIRS() {
-    const scene = game.scene.scenes[0]; // Get the main scene
-    if (processingBoxes.length === 0) {
-        console.log("No boxes being processed to bribe for");
-        return;
-    }
-    
-    // Reset bribe index if it's out of bounds
-    if (bribeIndex >= processingBoxes.length) {
-        bribeIndex = 0;
-    }
-    
-    // Find next unbribed box starting from current bribe index
-    let attempts = 0;
-    let targetBox = null;
-    
-    while (attempts < processingBoxes.length) {
-        const candidateBox = processingBoxes[bribeIndex];
-        
-        if (!candidateBox.isBribed) {
-            targetBox = candidateBox;
-            break;
-        }
-        
-        // Move to next box and try again
-        bribeIndex = (bribeIndex + 1) % processingBoxes.length;
-        attempts++;
-    }
-    
-    if (!targetBox) {
-        console.log("All processing boxes have already been bribed");
-        return;
-    }
-    
-    // Calculate cost with 2x multiplier for Senior level
+    // Calculate cost for premium processing
     const currentLevel = getCurrentLevel();
-    const baseCost = currentLevel.bribeCost;
-    const multiplier = level >= 2 ? 2 : 1; // Senior pays 2x
-    const totalCost = baseCost * multiplier;
+    const baseCost = currentLevel.bribeCost; // $500
     
-    if (money < totalCost) {
-        console.log(`Not enough money to bribe! Need $${totalCost}, have $${money}`);
+    if (money < baseCost) {
+        console.log(`Not enough money for premium processing! Need $${baseCost}, have $${money}`);
         return;
     }
     
-    // Pay the bribe cost
-    money -= totalCost;
-    targetBox.isBribed = true;
+    // Pay the cost and enable 5 premium processing uses
+    money -= baseCost;
+    updatePhoneTint(); // Update phone tint based on new money amount
+    premiumProcessingUses = 5;
+    updatePremiumProcessingDisplay(); // Update the display
     
-    // Add yellow border graphics to show bribed status
-    if (!targetBox.bribeBorder) {
-        targetBox.bribeBorder = scene.add.graphics();
-        targetBox.bribeBorder.lineStyle(4, BRIBE_BORDER_TINT); // Yellow border, 4px thick
-        
-        // Get banner dimensions (assuming banner is scaled to 0.67)
-        const bannerWidth = targetBox.sprite.width * 0.67;
-        const bannerHeight = targetBox.sprite.height * 0.67;
-        
-        // Draw rectangle border around the banner
-        targetBox.bribeBorder.strokeRect(
-            targetBox.sprite.x - bannerWidth/2, 
-            targetBox.sprite.y - bannerHeight/2, 
-            bannerWidth, 
-            bannerHeight
-        );
-    }
-    
-    // Calculate remaining processing time and speed it up by 80%
-    const elapsed = Date.now() - targetBox.processingStartTime;
-    const remaining = targetBox.originalProcessingTime - elapsed;
-    const acceleratedTime = remaining * BRIBE_SPEED_MULTIPLIER; // 80% faster = 20% of original time
-    
-    // Clear the old timeout and set a new faster one
-    setTimeout(() => {
-        if (processingBoxes.includes(targetBox)) {
-            completeProcessing(targetBox);
-        }
-    }, Math.max(100, acceleratedTime)); // Minimum 100ms
-    
-    console.log(`Bribed IRS for $${totalCost}! Box #${targetBox.id} (index ${bribeIndex}) processing accelerated by 80%`);
-    
-    // Move to next box for next bribe
-    bribeIndex = (bribeIndex + 1) % processingBoxes.length;
+    console.log(`Premium processing enabled! Next ${premiumProcessingUses} TINs will be processed instantly for $${baseCost}`);
     
     // Update money display
     document.getElementById('money-display').textContent = `Money: $${money}`;
@@ -1872,45 +1975,44 @@ function bribeIRS() {
 
 // Update function - main game loop
 function update() {
+    // CRITICAL: Handle dialog dismissal FIRST before any other logic
+    
     // Handle Y key to dismiss welcome dialog
     if (Phaser.Input.Keyboard.JustDown(keys.y) && welcomeDialogActive) {
+        console.log("Y pressed - closing welcome dialog");
         closeWelcomeDialog();
         return;
     }
     
-    // Handle pause toggle and election results
-    if (Phaser.Input.Keyboard.JustDown(keys.p)) {
-        // Check if we're showing election results
-        if (this.electionResultsUI) {
-            closeElection();
+    // Handle Y key to dismiss premium processing dialog
+    if (premiumProcessingDialogActive) {
+        // Try different methods to detect Y key press
+        if (Phaser.Input.Keyboard.JustDown(keys.y)) {
+            console.log("Y JustDown detected - closing dialog");
+            closePremiumProcessingDialog();
             return;
         }
         
-        // Normal pause toggle
-        gameIsPaused = !gameIsPaused;
-        if (gameIsPaused) {
-            this.pauseStartTime = Date.now();
-            console.log("Game PAUSED");
-        } else {
-            pausedTime += Date.now() - this.pauseStartTime;
-            console.log("Game RESUMED");
+        // Alternative: Check if Y key was just pressed using different method
+        if (keys.y.isDown && !keys.y.wasDown) {
+            console.log("Y key state change detected - closing dialog");
+            closePremiumProcessingDialog();
+            return;
+        }
+        
+        // Alternative: Use direct key event listening
+        if (keys.y.isDown) {
+            console.log("Y key is currently pressed - closing dialog");
+            closePremiumProcessingDialog();
+            return;
         }
     }
     
-    // Skip all game logic if paused (except during elections, results, and welcome dialog)
-    if (gameIsPaused && !isElectionActive && !this.electionResultsUI && !welcomeDialogActive) {
-        // Show pause indicator
-        if (!this.pauseText) {
-            this.pauseText = this.add.text(480, 360, 'PAUSED\nPress P to Resume', {
-                fontSize: PAUSE_TEXT_FONT_SIZE,
-                fill: '#ffffff',
-                fontFamily: '"Jersey 15", sans-serif',
-                align: 'center',
-                backgroundColor: '#000000',
-                padding: { x: 20, y: 20 }
-            }).setOrigin(0.5);
-            this.pauseText.setDepth(PAUSE_TEXT_DEPTH); // Ensure it's on top
-        }
+    
+    // Skip all game logic if paused (except during elections, results, and dialogs)
+    if (gameIsPaused && !isElectionActive && !this.electionResultsUI && !welcomeDialogActive && !premiumProcessingDialogActive) {
+        // This condition should normally not occur since we removed manual pause
+        // but keeping it as a safety check
         return;
     } else {
         // Remove pause indicator
@@ -1945,8 +2047,8 @@ function update() {
     }
     */
     
-    // Skip player movement and interactions if welcome dialog is active
-    if (welcomeDialogActive) {
+    // Skip player movement and interactions if any dialog is active
+    if (welcomeDialogActive || premiumProcessingDialogActive) {
         return;
     }
     
@@ -2044,13 +2146,13 @@ function update() {
         dropBox();
     }
     
-    // Handle SPACE key for 0-card shortcut
-    if (Phaser.Input.Keyboard.JustDown(keys.space)) {
+    // Handle B key for 0-card shortcut
+    if (Phaser.Input.Keyboard.JustDown(keys.b)) {
         use0Card();
     }
     
-    // Handle B key for bribing IRS
-    if (Phaser.Input.Keyboard.JustDown(keys.b)) {
+    // Handle C key for bribing IRS
+    if (Phaser.Input.Keyboard.JustDown(keys.c)) {
         bribeIRS();
     }
     
