@@ -220,6 +220,7 @@ let dialogStep = 1; // Track which dialog step we're on (1 = hired, 2 = responsi
 let briberateText; // Reference to the bribe rate text displayed above the phone
 let premiumProcessingDialogShown = false; // Track if premium processing dialog has been shown
 let premiumProcessingDialogActive = false; // Track if premium processing dialog is currently active
+let breachOfTrustDialogActive = false; // Track if breach of trust dialog is currently active
 let premiumProcessingUses = 0; // Track how many instant processing uses are available
 
 // List of obviously bad TINs that should always be invalid
@@ -283,7 +284,7 @@ function updatePlayerSprite() {
 function checkPromotion() {
     if (level === 2 && happiness >= 100) {
         // Win condition: Senior level with 100 mood
-        alert('VICTORY! You have reached maximum happiness as a Senior employee! You win!');
+        showBreachOfTrustDialog();
         console.log('GAME WON: Senior level reached 100 mood');
         return true;
     } else if (level < levels.length - 1 && happiness >= 100) {
@@ -635,6 +636,153 @@ function closePremiumProcessingDialog() {
     gameIsPaused = false;
 }
 
+// Function to show Role Realignment dialog (game over)
+function showRoleRealignmentDialog() {
+    const scene = game.scene.scenes[0];
+    
+    // Pause the game permanently
+    gameIsPaused = true;
+    
+    // Create dialog background
+    const dialogBg = scene.add.image(DIALOG_X, DIALOG_Y, 'dialog');
+    dialogBg.setScale(DIALOG_SCALE);
+    dialogBg.setDepth(DIALOG_DEPTH);
+    
+    // Subject text (250px from left, 1.5x bigger font)
+    const subjectText = scene.add.text(DIALOG_X - 400 + 250, DIALOG_Y + DIALOG_TITLE_Y_OFFSET - 100, 'Subject:', {
+        fontSize: '32px', // 21px * 1.5 = 31.5px, rounded to 32px
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'left',
+        fontWeight: '600'
+    }).setOrigin(0, 0.5);
+    subjectText.setDepth(DIALOG_DEPTH + 1);
+    
+    // "Role Realignment" text (same row as Subject, 60px to the right of center)
+    const roleRealignmentText = scene.add.text(DIALOG_X + 80, DIALOG_Y + DIALOG_TITLE_Y_OFFSET - 100, 'Role Realignment', {
+        fontSize: DIALOG_TITLE_FONT_SIZE,
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'center',
+        fontStyle: 'bold'
+    }).setOrigin(0.5);
+    roleRealignmentText.setDepth(DIALOG_DEPTH + 1);
+    
+    // Main dialog text
+    const dialogText = `Hey,
+
+We've reviewed your recent contributions and, well… it's clear this isn't quite the harmonious synergy we were hoping for.
+
+You gave it a shot, we watched closely, and unfortunately, you're just not the right fit. We'll have to let you go — but chin up! Every end is just a non-renewable beginning.
+
+Best,
+AxBit Leadership`;
+    
+    const mainText = scene.add.text(DIALOG_X, DIALOG_Y + DIALOG_TEXT_Y_OFFSET + 60, dialogText, {
+        fontSize: DIALOG_TEXT_FONT_SIZE,
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'left',
+        wordWrap: { width: DIALOG_TEXT_MAX_WIDTH }
+    }).setOrigin(0.5);
+    mainText.setDepth(DIALOG_DEPTH + 1);
+    
+    // No accept button - dialog cannot be dismissed
+    // Store dialog elements (no cleanup needed since game is over)
+    scene.roleRealignmentDialogUI = [dialogBg, subjectText, roleRealignmentText, mainText];
+}
+
+// Function to show Breach of Trust dialog (game won)
+function showBreachOfTrustDialog() {
+    const scene = game.scene.scenes[0];
+    
+    // Pause the game while dialog is shown
+    gameIsPaused = true;
+    breachOfTrustDialogActive = true;
+    
+    // Create dialog background
+    const dialogBg = scene.add.image(DIALOG_X, DIALOG_Y, 'dialog');
+    dialogBg.setScale(DIALOG_SCALE);
+    dialogBg.setDepth(DIALOG_DEPTH);
+    
+    // Subject text (250px from left, 1.5x bigger font)
+    const subjectText = scene.add.text(DIALOG_X - 400 + 250, DIALOG_Y + DIALOG_TITLE_Y_OFFSET - 100, 'Subject:', {
+        fontSize: '32px', // 21px * 1.5 = 31.5px, rounded to 32px
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'left',
+        fontWeight: '600'
+    }).setOrigin(0, 0.5);
+    subjectText.setDepth(DIALOG_DEPTH + 1);
+    
+    // "Breach of Trust" text (same row as Subject, 60px to the right of center)
+    const breachOfTrustText = scene.add.text(DIALOG_X + 80, DIALOG_Y + DIALOG_TITLE_Y_OFFSET - 100, 'Breach of Trust', {
+        fontSize: DIALOG_TITLE_FONT_SIZE,
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'center',
+        fontStyle: 'bold'
+    }).setOrigin(0.5);
+    breachOfTrustText.setDepth(DIALOG_DEPTH + 1);
+    
+    // Main dialog text
+    const dialogText = `How could you? After everything we've done for you — the real-time systems, the TINs, the premium processing… and Lois.
+
+And now you walk away? Just like that?
+
+Well. Good luck (not really) with whatever it is you're off to do.
+Please don't leave.
+
+...Oh well, I suppose a new junior will be starting next week.`;
+    
+    const mainText = scene.add.text(DIALOG_X, DIALOG_Y + DIALOG_TEXT_Y_OFFSET + 60, dialogText, {
+        fontSize: DIALOG_TEXT_FONT_SIZE,
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'left',
+        wordWrap: { width: DIALOG_TEXT_MAX_WIDTH }
+    }).setOrigin(0.5);
+    mainText.setDepth(DIALOG_DEPTH + 1);
+    
+    // Accept button at bottom right corner of dialog
+    const buttonX = DIALOG_X + 115; // 3px more to the left (118 - 3 = 115)
+    const buttonY = DIALOG_Y + 154; // 4px more down (150 + 4 = 154)
+    
+    const acceptButton = scene.add.image(buttonX, buttonY, 'button');
+    acceptButton.setScale(0.08); // Slightly smaller (0.1 reduced for 2px effect)
+    acceptButton.setDepth(DIALOG_DEPTH + 1);
+    
+    // "Accept (Y)" text on the button
+    const buttonText = scene.add.text(buttonX, buttonY, 'Accept (Y)', {
+        fontSize: '14px',
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'center',
+        fontWeight: 'bold'
+    }).setOrigin(0.5);
+    buttonText.setDepth(DIALOG_DEPTH + 2);
+    
+    // Store dialog elements for cleanup
+    scene.breachOfTrustDialogUI = [dialogBg, subjectText, breachOfTrustText, mainText, acceptButton, buttonText];
+}
+
+// Function to close Breach of Trust dialog and restart game
+function closeBreachOfTrustDialog() {
+    const scene = game.scene.scenes[0];
+    
+    // Clean up dialog elements
+    if (scene.breachOfTrustDialogUI) {
+        scene.breachOfTrustDialogUI.forEach(element => element.destroy());
+        scene.breachOfTrustDialogUI = null;
+    }
+    
+    // Reset dialog state
+    breachOfTrustDialogActive = false;
+    
+    // Restart the game by reloading the page
+    location.reload();
+}
+
 // Function to update phone tint based on money
 function updatePhoneTint() {
     if (phone) {
@@ -706,8 +854,7 @@ function updateHappiness(change) {
     
     // Check for game over
     if (happiness <= -100) {
-        alert('GAME OVER: Your mood has reached rock bottom! You have been fired.');
-        // Could implement proper game over screen here
+        showRoleRealignmentDialog();
     }
     
     // Check for promotion
@@ -2013,9 +2160,38 @@ function update() {
         }
     }
     
+    // Handle Y and ESC keys to dismiss breach of trust dialog
+    if (breachOfTrustDialogActive) {
+        if (
+          Phaser.Input.Keyboard.JustDown(keys.y) ||
+          Phaser.Input.Keyboard.JustDown(keys.esc)
+        ) {
+          console.log("Y/ESC pressed - closing breach of trust dialog and restarting game");
+          closeBreachOfTrustDialog();
+          return;
+        }
+        
+        // Alternative: Check if Y/ESC key was just pressed using different method
+        if (
+          (keys.y.isDown && !keys.y.wasDown) ||
+          (keys.esc.isDown && !keys.esc.wasDown)
+        ) {
+          console.log("Y/ESC key state change detected - closing breach of trust dialog and restarting game");
+          closeBreachOfTrustDialog();
+          return;
+        }
+        
+        // Alternative: Use direct key event listening
+        if (keys.y.isDown || keys.esc.isDown) {
+            console.log("Y/ESC key is currently pressed - closing breach of trust dialog and restarting game");
+            closeBreachOfTrustDialog();
+            return;
+        }
+    }
+    
     
     // Skip all game logic if paused (except during elections, results, and dialogs)
-    if (gameIsPaused && !isElectionActive && !this.electionResultsUI && !welcomeDialogActive && !premiumProcessingDialogActive) {
+    if (gameIsPaused && !isElectionActive && !this.electionResultsUI && !welcomeDialogActive && !premiumProcessingDialogActive && !breachOfTrustDialogActive) {
         // This condition should normally not occur since we removed manual pause
         // but keeping it as a safety check
         return;
@@ -2053,7 +2229,7 @@ function update() {
     */
     
     // Skip player movement and interactions if any dialog is active
-    if (welcomeDialogActive || premiumProcessingDialogActive) {
+    if (welcomeDialogActive || premiumProcessingDialogActive || breachOfTrustDialogActive) {
         return;
     }
     
