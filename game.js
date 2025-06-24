@@ -221,6 +221,8 @@ let briberateText; // Reference to the bribe rate text displayed above the phone
 let premiumProcessingDialogShown = false; // Track if premium processing dialog has been shown
 let premiumProcessingDialogActive = false; // Track if premium processing dialog is currently active
 let breachOfTrustDialogActive = false; // Track if breach of trust dialog is currently active
+let promotionDialogActive = false; // Track if promotion dialog is currently active
+let dialogQueue = []; // Queue for dialogs to prevent overlapping
 let premiumProcessingUses = 0; // Track how many instant processing uses are available
 
 // List of obviously bad TINs that should always be invalid
@@ -295,6 +297,10 @@ function checkPromotion() {
         document.getElementById('level-display-value').textContent = `${newLevel.name}`;
         updateBribeDisplay(); // Update bribe rate display
         updateHappiness(0); // Update display without changing value
+        
+        // Show promotion dialog
+        showPromotionDialog(newLevel.name);
+        
         return true;
     }
     return false;
@@ -551,8 +557,13 @@ function closeWelcomeDialog() {
     }
 }
 
-// Function to show premium processing dialog
+// Function to show premium processing dialog (queue version)
 function showPremiumProcessingDialog() {
+    queueDialog('premium');
+}
+
+// Function to actually show premium processing dialog
+function actuallyShowPremiumProcessingDialog() {
     const scene = game.scene.scenes[0];
     
     console.log("showPremiumProcessingDialog called - setting premiumProcessingDialogActive to true");
@@ -634,9 +645,15 @@ function closePremiumProcessingDialog() {
     // Resume game
     premiumProcessingDialogActive = false;
     gameIsPaused = false;
+    
+    console.log("Premium processing dialog closed, processing queue...");
+    // Process next dialog in queue after a short delay to prevent same key press from dismissing next dialog
+    setTimeout(() => {
+        processDialogQueue();
+    }, 100);
 }
 
-// Function to show Role Realignment dialog (game over)
+// Function to show Role Realignment dialog (game over) - no queue needed, game ends
 function showRoleRealignmentDialog() {
     const scene = game.scene.scenes[0];
     
@@ -692,8 +709,13 @@ AxBit Leadership`;
     scene.roleRealignmentDialogUI = [dialogBg, subjectText, roleRealignmentText, mainText];
 }
 
-// Function to show Breach of Trust dialog (game won)
+// Function to show Breach of Trust dialog (game won) (queue version)
 function showBreachOfTrustDialog() {
+    queueDialog('breach');
+}
+
+// Function to actually show Breach of Trust dialog (game won)
+function actuallyShowBreachOfTrustDialog() {
     const scene = game.scene.scenes[0];
     
     // Pause the game while dialog is shown
@@ -781,6 +803,154 @@ function closeBreachOfTrustDialog() {
     
     // Restart the game by reloading the page
     location.reload();
+}
+
+// Function to show promotion dialog (queue version)
+function showPromotionDialog(levelName) {
+    queueDialog('promotion', levelName);
+}
+
+// Function to actually show promotion dialog
+function actuallyShowPromotionDialog(levelName) {
+    const scene = game.scene.scenes[0];
+    
+    // Pause the game while dialog is shown
+    gameIsPaused = true;
+    promotionDialogActive = true;
+    
+    // Create dialog background
+    const dialogBg = scene.add.image(DIALOG_X, DIALOG_Y, 'dialog');
+    dialogBg.setScale(DIALOG_SCALE);
+    dialogBg.setDepth(DIALOG_DEPTH);
+    
+    // Subject text (250px from left, 1.5x bigger font)
+    const subjectText = scene.add.text(DIALOG_X - 400 + 250, DIALOG_Y + DIALOG_TITLE_Y_OFFSET - 100, 'Subject:', {
+        fontSize: '32px', // 21px * 1.5 = 31.5px, rounded to 32px
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'left',
+        fontWeight: '600'
+    }).setOrigin(0, 0.5);
+    subjectText.setDepth(DIALOG_DEPTH + 1);
+    
+    // "Promotion" text (same row as Subject, 60px to the right of center)
+    const promotionText = scene.add.text(DIALOG_X + 80, DIALOG_Y + DIALOG_TITLE_Y_OFFSET - 100, 'Promotion', {
+        fontSize: DIALOG_TITLE_FONT_SIZE,
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'center',
+        fontStyle: 'bold'
+    }).setOrigin(0.5);
+    promotionText.setDepth(DIALOG_DEPTH + 1);
+    
+    // Different text based on level
+    let dialogText;
+    if (levelName === 'Mid') {
+        dialogText = `It's that time of year again — and you've earned it! You've worked hard, tackled those tricky TINs, and kept everything running in real time. Impressive!
+
+Congratulations, you're now a Level II Engineer — and it shows. Look at you go, submitting two TINs at once like a pro!
+
+But with greater speed comes greater responsibility. The stakes are higher now, and our patience is running thin. We've placed a lot of trust in you… so don't let us down.`;
+    } else if (levelName === 'Senior') {
+        dialogText = `Congratulations — you've ascended to Level III Engineer!
+
+At this point, you can almost feel which TINs are valid. It's uncanny. No more waiting, no more guessing — just pure, instinctual TIN magic. We're impressed… and a little frightened.
+
+But remember: with great power comes zero tolerance for mistakes. We trust you completely now — which means any failure will cut deep.
+
+Don't break our hearts.`;
+    }
+    
+    const mainText = scene.add.text(DIALOG_X, DIALOG_Y + DIALOG_TEXT_Y_OFFSET + 60, dialogText, {
+        fontSize: DIALOG_TEXT_FONT_SIZE,
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'left',
+        wordWrap: { width: DIALOG_TEXT_MAX_WIDTH }
+    }).setOrigin(0.5);
+    mainText.setDepth(DIALOG_DEPTH + 1);
+    
+    // Accept button at bottom right corner of dialog
+    const buttonX = DIALOG_X + 115; // 3px more to the left (118 - 3 = 115)
+    const buttonY = DIALOG_Y + 154; // 4px more down (150 + 4 = 154)
+    
+    const acceptButton = scene.add.image(buttonX, buttonY, 'button');
+    acceptButton.setScale(0.08); // Slightly smaller (0.1 reduced for 2px effect)
+    acceptButton.setDepth(DIALOG_DEPTH + 1);
+    
+    // "Accept (Y)" text on the button
+    const buttonText = scene.add.text(buttonX, buttonY, 'Accept (Y)', {
+        fontSize: '14px',
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'center',
+        fontWeight: 'bold'
+    }).setOrigin(0.5);
+    buttonText.setDepth(DIALOG_DEPTH + 2);
+    
+    // Store dialog elements for cleanup
+    scene.promotionDialogUI = [dialogBg, subjectText, promotionText, mainText, acceptButton, buttonText];
+}
+
+// Function to close promotion dialog
+function closePromotionDialog() {
+    const scene = game.scene.scenes[0];
+    
+    // Clean up dialog elements
+    if (scene.promotionDialogUI) {
+        scene.promotionDialogUI.forEach(element => element.destroy());
+        scene.promotionDialogUI = null;
+    }
+    
+    // Resume game
+    promotionDialogActive = false;
+    gameIsPaused = false;
+    
+    console.log("Promotion dialog closed, processing queue...");
+    // Process next dialog in queue after a short delay to prevent same key press from dismissing next dialog
+    setTimeout(() => {
+        processDialogQueue();
+    }, 100);
+}
+
+// Function to add dialog to queue
+function queueDialog(type, data = null) {
+    console.log(`Queueing dialog: ${type}, queue length: ${dialogQueue.length}`);
+    dialogQueue.push({ type, data });
+    console.log(`Queue after adding: ${dialogQueue.length}`);
+    processDialogQueue();
+}
+
+// Function to process dialog queue
+function processDialogQueue() {
+    console.log(`Processing dialog queue. Length: ${dialogQueue.length}`);
+    console.log(`Dialog states - premium: ${premiumProcessingDialogActive}, promotion: ${promotionDialogActive}, breach: ${breachOfTrustDialogActive}, welcome: ${welcomeDialogActive}`);
+    
+    // Don't process if any dialog is currently active (exclude welcome dialog after game starts)
+    if (premiumProcessingDialogActive || promotionDialogActive || breachOfTrustDialogActive) {
+        console.log("Dialog currently active, not processing queue");
+        return;
+    }
+    
+    // Process next dialog in queue
+    if (dialogQueue.length > 0) {
+        const nextDialog = dialogQueue.shift();
+        console.log(`Processing next dialog: ${nextDialog.type}`);
+        
+        switch (nextDialog.type) {
+            case 'premium':
+                actuallyShowPremiumProcessingDialog();
+                break;
+            case 'promotion':
+                actuallyShowPromotionDialog(nextDialog.data);
+                break;
+            case 'breach':
+                actuallyShowBreachOfTrustDialog();
+                break;
+        }
+    } else {
+        console.log("Queue is empty");
+    }
 }
 
 // Function to update phone tint based on money
@@ -2189,9 +2359,39 @@ function update() {
         }
     }
     
+    // Handle Y and ESC keys to dismiss promotion dialog
+    if (promotionDialogActive) {
+        // Try different methods to detect Y and ESC keys press
+        if (
+          Phaser.Input.Keyboard.JustDown(keys.y) ||
+          Phaser.Input.Keyboard.JustDown(keys.esc)
+        ) {
+          console.log("Y/ESC JustDown detected - closing promotion dialog");
+          closePromotionDialog();
+          return;
+        }
+        
+        // Alternative: Check if Y/ESC key was just pressed using different method
+        if (
+          (keys.y.isDown && !keys.y.wasDown) ||
+          (keys.esc.isDown && !keys.esc.wasDown)
+        ) {
+          console.log("Y/ESC key state change detected - closing promotion dialog");
+          closePromotionDialog();
+          return;
+        }
+        
+        // Alternative: Use direct key event listening
+        if (keys.y.isDown || keys.esc.isDown) {
+            console.log("Y/ESC key is currently pressed - closing promotion dialog");
+            closePromotionDialog();
+            return;
+        }
+    }
+    
     
     // Skip all game logic if paused (except during elections, results, and dialogs)
-    if (gameIsPaused && !isElectionActive && !this.electionResultsUI && !welcomeDialogActive && !premiumProcessingDialogActive && !breachOfTrustDialogActive) {
+    if (gameIsPaused && !isElectionActive && !this.electionResultsUI && !welcomeDialogActive && !premiumProcessingDialogActive && !breachOfTrustDialogActive && !promotionDialogActive) {
         // This condition should normally not occur since we removed manual pause
         // but keeping it as a safety check
         return;
@@ -2229,7 +2429,7 @@ function update() {
     */
     
     // Skip player movement and interactions if any dialog is active
-    if (welcomeDialogActive || premiumProcessingDialogActive || breachOfTrustDialogActive) {
+    if (welcomeDialogActive || premiumProcessingDialogActive || breachOfTrustDialogActive || promotionDialogActive) {
         return;
     }
     

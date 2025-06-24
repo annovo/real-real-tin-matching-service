@@ -167,12 +167,10 @@
   - Additional UI for double processing (multiple slots)
   - TINs numbers should not overlap onto each other
   - Add dialog for level change
-  - Add dialog for game over
   - Add guide / help icon somewhere?
   - TINs should be spit out in slightly different directions
   - Dont allow premium processing if one is already bought (increase bribe for higher levels)
   - E/Q keys explained or dropped
-
 
 ## Phase 4: Advanced Features
 
