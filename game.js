@@ -44,6 +44,8 @@ const BELT_Y = 200;
 const BELT_START_X = 100; // Belt start position (moved 100px left)
 const IRS_MACHINE_X = 800; // Adjusted for new width
 const IRS_MACHINE_Y = 400;
+const IRS_MACHINE_2_X = 800; // Second machine position (under first machine)
+const IRS_MACHINE_2_Y = 530;
 const RETURN_STATION_X = 420;
 const RETURN_STATION_Y = 660;
 const PUT_HERE_TEXT_X = 420;
@@ -199,18 +201,28 @@ let boxes = [];
 let boxIdCounter = 1;
 let carriedBoxes = [];
 let irsMachine;
+let irsMachine2;
 let phone; // Phone sprite reference for tint updates
 let processingBoxes = [];
+let processingBoxes2 = []; // Processing boxes for second machine
 let processingStatus;
 let gameScene; // Reference to the current scene for adding objects
 let returnStation;
 let money = 0;
 let gameStartTime;
 let level = 0;
-let happiness = 50; // Start at Junior's initial mood
+let happiness = 95; // Start at Junior's initial mood
 let spaceCardIndex = 0; // Track which box to process next with SPACE
 let gameIsPaused = false; // Track pause state
 let pausedTime = 0; // Track how long game has been paused
+let currentBeltPosition = 0; // Track next stop position on belt (resets when reaching end)
+let currentMusicIndex = 0; // Track which music track is currently playing
+const musicTracks = [
+    { key: 'bgMusic1', file: 'Travis_eulogy.mp3', name: 'Eulogy' },
+    { key: 'bgMusic2', file: 'The_Solution_Remastered.mp3', name: 'The Solution' },
+    { key: 'bgMusic3', file: 'Empire_of_Vodka_Remastered.mp3', name: 'Empire of Vodka' },
+    { key: 'bgMusic4', file: 'Quiet_Meeting_at_the_Bit.mp3', name: 'Quiet Meeting' }
+];
 let bribeIndex = 0; // Track which processing box to bribe next
 let electionCount = 0; // Track number of elections held
 let nextElectionTime = 30000; // 30 seconds in milliseconds
@@ -269,14 +281,18 @@ function getCurrentLevel() {
     return levels[level];
 }
 
-// Function to update player sprite based on current state
+// Function to update player sprite based on current state and level
 function updatePlayerSprite() {
-    let spriteKey = 'playerIdle'; // Default to idle
+    // Get level suffix for sprite names
+    const levelNames = ['Junior', 'Mid', 'Senior'];
+    const levelSuffix = levelNames[level] || 'Junior';
+    
+    let spriteKey = `playerIdle${levelSuffix}`; // Default to idle
     
     if (playerState === 'walking-left') {
-        spriteKey = walkFrame === 1 ? 'playerWalk1Left' : 'playerWalk2Left';
+        spriteKey = walkFrame === 1 ? `playerWalk1Left${levelSuffix}` : `playerWalk2Left${levelSuffix}`;
     } else if (playerState === 'walking-right') {
-        spriteKey = walkFrame === 1 ? 'playerWalk1Right' : 'playerWalk2Right';
+        spriteKey = walkFrame === 1 ? `playerWalk1Right${levelSuffix}` : `playerWalk2Right${levelSuffix}`;
     }
     
     player.setTexture(spriteKey);
@@ -300,6 +316,11 @@ function checkPromotion() {
         
         // Show promotion dialog
         showPromotionDialog(newLevel.name);
+        
+        // Show second IRS machine when reaching Mid level or higher
+        if (level >= 1) { // Mid = level 1, Senior = level 2
+            irsMachine2.setVisible(true);
+        }
         
         return true;
     }
@@ -597,9 +618,11 @@ function actuallyShowPremiumProcessingDialog() {
     premiumText.setDepth(DIALOG_DEPTH + 1);
     
     // Main dialog text
+    const currentLevel = getCurrentLevel();
+    const bribeCost = currentLevel.bribeCost;
     const dialogText = `Looks like you're doing well — nice work! You've probably noticed the IRS can be a bit… slow. Now that you've earned some trust, you're eligible for premium processing to speed things up.
 
-It'll cost you extra ($500), but what a joy it is to get your results instantly and boost our OKRs! Just call (C) our government contact, Lois, and he'll enable premium processing for the next 5 TINs you submit.`;
+It'll cost you extra ($${bribeCost}), but what a joy it is to get your results instantly and boost our OKRs! Just call (C) our government contact, Lois, and he'll enable premium processing for the next 5 TINs you submit.`;
     
     const mainText = scene.add.text(DIALOG_X, DIALOG_Y + DIALOG_TEXT_Y_OFFSET + 30, dialogText, {
         fontSize: DIALOG_TEXT_FONT_SIZE,
@@ -953,14 +976,37 @@ function processDialogQueue() {
     }
 }
 
-// Function to update phone tint based on money
+// Function to switch to next music track
+function switchMusic() {
+    const scene = game.scene.scenes[0];
+    
+    // Stop current music
+    if (scene.bgMusic && scene.bgMusic.isPlaying) {
+        scene.bgMusic.stop();
+    }
+    
+    // Move to next track
+    currentMusicIndex = (currentMusicIndex + 1) % musicTracks.length;
+    scene.bgMusic = scene.musicObjects[currentMusicIndex];
+    
+    // Start new music
+    scene.bgMusic.play();
+    
+    const trackName = musicTracks[currentMusicIndex].name;
+    console.log(`Music switched to: ${trackName}`);
+}
+
+// Function to update phone tint based on money and premium processing availability
 function updatePhoneTint() {
     if (phone) {
         const currentLevel = getCurrentLevel();
         const bribeCost = currentLevel.bribeCost;
         
-        if (money >= bribeCost) {
-            // Remove tint (show original colors) when player has enough money
+        if (premiumProcessingUses > 0) {
+            // Apply grey tint when premium processing is already active
+            phone.setTint(0x888888);
+        } else if (money >= bribeCost) {
+            // Remove tint (show original colors) when player has enough money and no active premium
             phone.clearTint();
         } else {
             // Apply grey tint when player doesn't have enough money
@@ -1378,14 +1424,32 @@ function preload() {
     this.load.image('wallTileRight', 'assets/images/backgrounds/wall-vertical.png');
     
     // Load character sprites
-    this.load.image('playerIdle', 'assets/images/character/green/front-facing.png');
-    this.load.image('playerWalk1Left', 'assets/images/character/green/walk-1-left.png');
-    this.load.image('playerWalk2Left', 'assets/images/character/green/walk-2-left.png');
-    this.load.image('playerWalk1Right', 'assets/images/character/green/walk-1-right.png');
-    this.load.image('playerWalk2Right', 'assets/images/character/green/walk-2-right.png');
+    // Load character sprites for all levels
+    // Junior level - black character
+    this.load.image('playerIdleJunior', 'assets/images/character/black/front-facing.png');
+    this.load.image('playerWalk1LeftJunior', 'assets/images/character/black/walk-1-left.png');
+    this.load.image('playerWalk2LeftJunior', 'assets/images/character/black/walk-2-left.png');
+    this.load.image('playerWalk1RightJunior', 'assets/images/character/black/walk-1-right.png');
+    this.load.image('playerWalk2RightJunior', 'assets/images/character/black/walk-2-right.png');
     
-    // Load background music
-    this.load.audio('bgMusic', 'assets/audio/music/Travis_eulogy.mp3');
+    // Mid level - green character
+    this.load.image('playerIdleMid', 'assets/images/character/green/front-facing.png');
+    this.load.image('playerWalk1LeftMid', 'assets/images/character/green/walk-1-left.png');
+    this.load.image('playerWalk2LeftMid', 'assets/images/character/green/walk-2-left.png');
+    this.load.image('playerWalk1RightMid', 'assets/images/character/green/walk-1-right.png');
+    this.load.image('playerWalk2RightMid', 'assets/images/character/green/walk-2-right.png');
+    
+    // Senior level - salmon character
+    this.load.image('playerIdleSenior', 'assets/images/character/salmon/front-facing.png');
+    this.load.image('playerWalk1LeftSenior', 'assets/images/character/salmon/walk-1-left.png');
+    this.load.image('playerWalk2LeftSenior', 'assets/images/character/salmon/walk-2-left.png');
+    this.load.image('playerWalk1RightSenior', 'assets/images/character/salmon/walk-1-right.png');
+    this.load.image('playerWalk2RightSenior', 'assets/images/character/salmon/walk-2-right.png');
+    
+    // Load background music tracks
+    for (let i = 0; i < musicTracks.length; i++) {
+        this.load.audio(musicTracks[i].key, `assets/audio/music/${musicTracks[i].file}`);
+    }
     
     // Load dialog UI
     this.load.image('dialog', 'assets/images/ui/dialog.png');
@@ -1599,14 +1663,19 @@ function create() {
         
     
     
-    // Create player - character sprite at center
-    player = this.add.image(PLAYER_START_X, PLAYER_START_Y, 'playerIdle');
+    // Create player - character sprite at center (starts as Junior)
+    player = this.add.image(PLAYER_START_X, PLAYER_START_Y, 'playerIdleJunior');
     player.setScale(PLAYER_SCALE);
     player.setDepth(PLAYER_DEPTH);
     
     // Create IRS Machine
     irsMachine = this.add.image(IRS_MACHINE_X, IRS_MACHINE_Y, 'irsMachine');
     irsMachine.setScale(IRS_MACHINE_SCALE);
+    
+    // Create second IRS Machine (initially hidden)
+    irsMachine2 = this.add.image(IRS_MACHINE_2_X, IRS_MACHINE_2_Y, 'irsMachine');
+    irsMachine2.setScale(IRS_MACHINE_SCALE);
+    irsMachine2.setVisible(false); // Hidden until mid/senior level
     
     // Add phone 100px above the IRS machine
     phone = this.add.image(IRS_MACHINE_X - 14, IRS_MACHINE_Y - 120, 'phone');
@@ -1623,6 +1692,7 @@ function create() {
         align: 'center'
     }).setOrigin(0.5);
     briberateText.setDepth(STATION_DEPTH);
+    
     
     
     // Create Return Station
@@ -1674,10 +1744,15 @@ function create() {
     }
     
     // Create background music (but don't start it yet - wait for dialog to be dismissed)
-    this.bgMusic = this.sound.add('bgMusic', { 
-        volume: BACKGROUND_MUSIC_VOLUME, 
-        loop: true 
-    });
+    // Initialize all music tracks
+    this.musicObjects = [];
+    for (let i = 0; i < musicTracks.length; i++) {
+        this.musicObjects[i] = this.sound.add(musicTracks[i].key, { 
+            volume: BACKGROUND_MUSIC_VOLUME, 
+            loop: true 
+        });
+    }
+    this.bgMusic = this.musicObjects[0]; // Start with first track (Eulogy)
     // Music will be started in closeWelcomeDialog()
     
     // Set up page visibility API to pause/resume music when tab is active/inactive
@@ -1708,6 +1783,7 @@ function create() {
     keys.t = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.T); // For testing elections
     keys.y = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Y); // For dismissing dialogs
     keys.esc = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC); // For dismissing dialogs
+    keys.r = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R); // For cycling music
     
     // Set up dynamic box spawning timer (updates every second)
     this.time.addEvent({
@@ -1735,52 +1811,17 @@ function spawnBox() {
         return;
     }
     
-    // Calculate next position on belt (place boxes horizontally)
+    // All boxes start from the same position (left side of belt)
     const beltY = this.beltY;
-    let spawnX = this.beltLeftX + 40; // Start slightly right of belt left
+    const startX = this.beltLeftX + 40; // All boxes start from the same position
     
-    // Find gaps and place boxes along the belt
-    const boxesOnBelt = boxes.filter(b => Math.abs(b.y - beltY) < 50);
-    
-    if (boxesOnBelt.length > 0) {
-        // Sort boxes by X position (left to right)
-        boxesOnBelt.sort((a, b) => a.x - b.x);
-        
-        // Look for gaps between boxes (40px spacing)
-        let foundGap = false;
-        for (let i = 0; i < boxesOnBelt.length - 1; i++) {
-            const currentBox = boxesOnBelt[i];
-            const nextBox = boxesOnBelt[i + 1];
-            const gapSize = nextBox.x - currentBox.x;
-            
-            // If gap is larger than box width + some buffer, place box there
-            if (gapSize > 80) {
-                spawnX = currentBox.x + 40;
-                foundGap = true;
-                break;
-            }
-        }
-        
-        // If no gap found, check if we can place at the end
-        if (!foundGap) {
-            const rightmostBox = boxesOnBelt.reduce((rightmost, box) => box.x > rightmost.x ? box : rightmost);
-            const nextX = rightmostBox.x + 40;
-            
-            // If next position would go beyond belt right, start from left again
-            if (nextX > this.beltRightX - 40) {
-                spawnX = this.beltLeftX + 40; // Reset to left
-            } else {
-                spawnX = nextX; // Place right of the rightmost box
-            }
-        }
-    }
-    
-    // Create TIN paper image at start of belt (always spawn at left)
-    const startX = this.beltLeftX + 40;
+    // Using simple delta-based positioning system
     const paperY = beltY + PAPER_Y_OFFSET; // 10px higher than belt
     const box = this.add.image(startX, paperY, 'tinPaper');
     box.setScale(TIN_PAPER_SCALE); // 1.5x smaller
-    box.setDepth(TIN_PAPER_DEPTH); // Above wallpaper and station text
+    // Use unique depth for each box to prevent text overlap (newer boxes on top)
+    const boxDepth = TIN_PAPER_DEPTH + (boxIdCounter * 0.01);
+    box.setDepth(boxDepth);
     
     // Add TIN number in the middle of the paper
     const boxId = boxIdCounter++;
@@ -1794,36 +1835,58 @@ function spawnBox() {
         align: "center",
       })
       .setOrigin(0.5);
-    label.setDepth(TIN_PAPER_DEPTH + 1); // Text above the paper
+    label.setDepth(boxDepth + 0.005); // Text slightly above this specific paper
     
-    // Animate the paper sliding to the end of the belt
-    const endX = this.beltRightX - 40;
-    const slideTime = BOX_SLIDE_DURATION; // Time to traverse the belt
+    // Simple delta-based positioning: each box stops 60px back from the end
+    let targetX = this.beltRightX - 55 - currentBeltPosition;
+    
+    // If we've reached the beginning of the belt, reset to end
+    if (targetX < this.beltLeftX + 60) {
+        currentBeltPosition = 0;
+        targetX = this.beltRightX - 55;
+    }
+    
+    // Increment position for next box
+    currentBeltPosition += 60;
+    
+    // Calculate animation duration based on distance (slower speed)
+    const distance = targetX - startX;
+    const speed = 50; // pixels per second
+    const slideTime = Math.max(500, (distance / speed) * 1000); // minimum 0.5 seconds
     
     this.tweens.add({
         targets: box,
-        x: endX,
+        x: targetX,
         duration: slideTime,
         ease: 'Linear',
         onComplete: () => {
-            // Stop movement when reaching the end
+            // Stop movement when reaching target position
             const boxData = boxes.find(b => b.sprite === box);
             if (boxData) {
                 boxData.isMoving = false;
+                boxData.x = targetX;
+                
+                // No automatic loop-back needed with delta system
+                // Boxes just stay at their assigned positions
             }
         }
     });
     
     this.tweens.add({
         targets: label,
-        x: endX,
+        x: targetX,
         duration: slideTime,
         ease: 'Linear'
     });
     
     // Check if this box should be pre-validated (Senior level doesn't have pre-validation)
+    // Check if this box should be pre-validated based on current level
     let isPreValidated = false;
-    // Pre-validation removed since no levels have it anymore
+    const currentLevel = levels[level];
+    if (currentLevel && currentLevel.preValidated) {
+        // 30% chance for pre-validated boxes at levels that support it
+        isPreValidated = Math.random() < 0.3;
+    }
     
     // Store box data
     const boxData = {
@@ -1838,7 +1901,7 @@ function spawnBox() {
         preValidated: isPreValidated,
         isBribed: false, // Track if this box has been bribed during processing
         isMoving: true, // Track if box is sliding on belt
-        endX: endX // Store target position
+        endX: targetX // Store target position
     };
     
     // If pre-validated, show result immediately
@@ -1848,8 +1911,10 @@ function spawnBox() {
         
         if (validity === 1) {
             box.setTint(VALID_BOX_TINT); // Green tint for valid
+            label.setStyle({ fill: '#000000' }); // Black text for validated TINs
         } else {
             box.setTint(INVALID_BOX_TINT); // Red tint for invalid
+            label.setStyle({ fill: '#000000' }); // Black text for validated TINs
         }
         
         // Keep original TIN text, just use color for validation result
@@ -1967,11 +2032,13 @@ function completeProcessing(boxToComplete) {
     boxToComplete.result = result;
     boxToComplete.assignedVia = 'irs'; // Mark as IRS machine result
     
-    // Change box tint based on result
+    // Change box tint and text color based on result
     if (result === 1) {
         boxToComplete.sprite.setTint(VALID_BOX_TINT); // Green tint for valid
+        boxToComplete.label.setStyle({ fill: '#000000' }); // Black text for validated TINs
     } else {
         boxToComplete.sprite.setTint(INVALID_BOX_TINT); // Red tint for invalid
+        boxToComplete.label.setStyle({ fill: '#000000' }); // Black text for validated TINs
     }
     
     // Show TIN text and paper again after processing
@@ -1990,8 +2057,35 @@ function completeProcessing(boxToComplete) {
     
     console.log(`Processing complete: Box #${boxToComplete.id} TIN: ${boxToComplete.tin} = ${result}`);
     
-    // Keep processed box in current position (don't move it)
-    // The box stays where it was when processing started
+    // Throw processed box in random direction with delta positioning
+    const directions = ['left', 'bottom'];
+    const direction = directions[Math.floor(Math.random() * directions.length)];
+    const randomDelta = 30 + Math.random() * 40; // 30-70px random distance
+    
+    let newX = boxToComplete.x;
+    let newY = boxToComplete.y;
+    
+    switch (direction) {
+        case 'right':
+            newX += randomDelta;
+            break;
+        case 'left':
+            newX -= randomDelta;
+            break;
+        case 'bottom':
+            newY += randomDelta;
+            break;
+    }
+    
+    // Keep within screen bounds
+    newX = Math.max(50, Math.min(newX, GAME_WIDTH - 50));
+    newY = Math.max(50, Math.min(newY, GAME_HEIGHT - 50));
+    
+    // Update position in data and sprites
+    boxToComplete.x = newX;
+    boxToComplete.y = newY;
+    boxToComplete.sprite.setPosition(newX, newY);
+    boxToComplete.label.setPosition(newX, newY);
     
     // Add to boxes array so player can pick it up
     boxes.push(boxToComplete);
@@ -2044,8 +2138,9 @@ function submitBox() {
         money += payment;
         updatePhoneTint(); // Update phone tint based on new money amount
         
-        // Check if player reached $500 for first time
-        if (money >= 500 && !premiumProcessingDialogShown) {
+        // Check if player reached bribe cost for first time
+        const currentLevel = getCurrentLevel();
+        if (money >= currentLevel.bribeCost && !premiumProcessingDialogShown) {
             premiumProcessingDialogShown = true;
             console.log("Showing premium processing dialog - money:", money);
             showPremiumProcessingDialog();
@@ -2103,8 +2198,9 @@ function submitAllBoxes() {
             totalEarned += payment;
             updatePhoneTint(); // Update phone tint based on new money amount
             
-            // Check if player reached $500 for first time
-            if (money >= 500 && !premiumProcessingDialogShown) {
+            // Check if player reached bribe cost for first time
+            const currentLevel = getCurrentLevel();
+            if (money >= currentLevel.bribeCost && !premiumProcessingDialogShown) {
                 premiumProcessingDialogShown = true;
                 console.log("Showing premium processing dialog - money:", money);
                 showPremiumProcessingDialog();
@@ -2135,9 +2231,20 @@ function processAllBoxes() {
     const unprocessedBoxes = carriedBoxes.filter(box => box.result === undefined);
     if (unprocessedBoxes.length === 0) return;
     
-    // Check if player is near IRS machine
-    const distance = Phaser.Math.Distance.Between(player.x, player.y, irsMachine.x, irsMachine.y);
-    if (distance > INTERACTION_DISTANCE) return;
+    // Check if player is near either IRS machine
+    const distance1 = Phaser.Math.Distance.Between(player.x, player.y, irsMachine.x, irsMachine.y);
+    const distance2 = Phaser.Math.Distance.Between(player.x, player.y, irsMachine2.x, irsMachine2.y);
+    const nearMachine1 = distance1 <= INTERACTION_DISTANCE;
+    const nearMachine2 = distance2 <= INTERACTION_DISTANCE && irsMachine2.visible;
+    
+    if (!nearMachine1 && !nearMachine2) return;
+    
+    // Determine which machine to use (prefer closest one)
+    const useMachine2 = nearMachine2 && (!nearMachine1 || distance2 < distance1);
+    const targetMachine = useMachine2 ? irsMachine2 : irsMachine;
+    
+    // Debug: show which machine is being used
+    console.log(`Processing on machine ${useMachine2 ? '2' : '1'} at (${targetMachine.x}, ${targetMachine.y})`);
     
     // Process up to available slots
     const availableSlots = maxSlots - processingBoxes.length;
@@ -2153,18 +2260,18 @@ function processAllBoxes() {
         // Position box in machine (stack them vertically)
         const slotIndex = processingBoxes.length - 1;
         const yOffset = PROCESSING_SLOT_BASE_Y + (slotIndex * PROCESSING_SLOT_SPACING);
-        boxToProcess.sprite.setPosition(irsMachine.x, irsMachine.y + yOffset);
+        boxToProcess.sprite.setPosition(targetMachine.x, targetMachine.y + yOffset);
         boxToProcess.sprite.setScale(TIN_PAPER_SCALE); // Keep smaller size
         boxToProcess.sprite.setVisible(false); // Hide paper during processing
-        boxToProcess.label.setPosition(irsMachine.x, irsMachine.y + yOffset); // Center text on paper
+        boxToProcess.label.setPosition(targetMachine.x, targetMachine.y + yOffset); // Center text on paper
         boxToProcess.label.setScale(1.0);
         boxToProcess.label.setVisible(false); // Hide TIN text during processing
         
         // Create thinking dots animation above the IRS machine
-        const thinkingDotsY = irsMachine.y + THINKING_DOTS_Y_OFFSET; // Position above IRS machine
+        const thinkingDotsY = targetMachine.y + THINKING_DOTS_Y_OFFSET; // Position above IRS machine
         boxToProcess.thinkingDots = [];
         for (let dotIndex = 0; dotIndex < 3; dotIndex++) {
-            const dot = gameScene.add.image(irsMachine.x + THINKING_DOTS_X_START_OFFSET + (dotIndex * THINKING_DOTS_SPACING), thinkingDotsY, 'thinkingDot');
+            const dot = gameScene.add.image(targetMachine.x + THINKING_DOTS_X_START_OFFSET + (dotIndex * THINKING_DOTS_SPACING), thinkingDotsY, 'thinkingDot');
             dot.setScale(THINKING_DOT_SMALL_SCALE); // Default small size
             dot.setVisible(true); // Show all dots at once
             boxToProcess.thinkingDots.push(dot);
@@ -2185,8 +2292,8 @@ function processAllBoxes() {
         });
         
         // Update box data position
-        boxToProcess.x = irsMachine.x;
-        boxToProcess.y = irsMachine.y + yOffset;
+        boxToProcess.x = targetMachine.x;
+        boxToProcess.y = targetMachine.y + yOffset;
         
         console.log(`Started processing box #${boxToProcess.id} in slot ${slotIndex + 1}/${maxSlots}`);
         
@@ -2198,6 +2305,7 @@ function processAllBoxes() {
             processingTime = 100; // Instant processing (100ms for visual effect)
             premiumProcessingUses--; // Use one premium processing
             updatePremiumProcessingDisplay(); // Update the display
+            updatePhoneTint(); // Update phone tint when premium uses change
             console.log(`Premium processing used! ${premiumProcessingUses} uses remaining`);
         } else {
             processingTime = getProcessingTime(); // Normal processing time
@@ -2251,6 +2359,7 @@ function use0Card() {
             targetBox.result = 0;
             targetBox.assignedVia = 'space';
             targetBox.sprite.setTint(ZERO_CARD_TINT); // Red tint
+            targetBox.label.setStyle({ fill: '#000000' }); // Black text for validated TINs
             console.log(`Used 0-card on box #${targetBox.id} (index ${spaceCardIndex})`);
             
             // Move to next box for next SPACE press
@@ -2268,9 +2377,15 @@ function use0Card() {
 
 // Function to enable premium processing for next 5 TINs
 function bribeIRS() {
+    // Don't allow bribing if premium processing is already active (unused uses remaining)
+    if (premiumProcessingUses > 0) {
+        console.log(`Premium processing already active! ${premiumProcessingUses} uses remaining.`);
+        return;
+    }
+    
     // Calculate cost for premium processing
     const currentLevel = getCurrentLevel();
-    const baseCost = currentLevel.bribeCost; // $500
+    const baseCost = currentLevel.bribeCost;
     
     if (money < baseCost) {
         console.log(`Not enough money for premium processing! Need $${baseCost}, have $${money}`);
@@ -2506,7 +2621,8 @@ function update() {
             submitAllBoxes();
         } else {
             // Check if near IRS machine (for processing)
-            const machineDistance = Phaser.Math.Distance.Between(player.x, player.y, irsMachine.x, irsMachine.y);
+            const machineDistance = Math.min(Phaser.Math.Distance.Between(player.x, player.y, irsMachine.x, irsMachine.y), 
+                                           Phaser.Math.Distance.Between(player.x, player.y, irsMachine2.x, irsMachine2.y));
             const hasUnprocessedBox = carriedBoxes.some(box => box.result === undefined);
             const maxSlots = getCurrentLevel().irsSlots;
             if (machineDistance <= 96 && processingBoxes.length < maxSlots && hasUnprocessedBox) {
@@ -2535,6 +2651,11 @@ function update() {
     // Handle C key for bribing IRS
     if (Phaser.Input.Keyboard.JustDown(keys.c)) {
         bribeIRS();
+    }
+    
+    // Handle R key for cycling music
+    if (Phaser.Input.Keyboard.JustDown(keys.r)) {
+        switchMusic();
     }
     
     // Handle T key for testing elections (dev shortcut) - COMMENTED OUT

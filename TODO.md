@@ -161,16 +161,9 @@
   - Control hints/tooltips
   - Progress indicators
 - [ ] **Improve TIN processing workflow** - Enhanced IRS machine behavior:
-  - TINs disappear when processed by IRS machine
-  - Processed TINs spawn back slightly below the machine
-  - Add progress bar for processing status
-  - Additional UI for double processing (multiple slots)
-  - TINs numbers should not overlap onto each other
-  - Add dialog for level change
-  - Add guide / help icon somewhere?
-  - TINs should be spit out in slightly different directions
-  - Dont allow premium processing if one is already bought (increase bribe for higher levels)
   - E/Q keys explained or dropped
+  - Allow arrows in addition to wasd
+  - Balance game
 
 ## Phase 4: Advanced Features
 
