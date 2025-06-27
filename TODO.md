@@ -161,9 +161,11 @@
   - Control hints/tooltips
   - Progress indicators
 - [ ] **Improve TIN processing workflow** - Enhanced IRS machine behavior:
-  - E/Q keys explained or dropped
   - Allow arrows in addition to wasd
-  - Balance game
+  - Balance game (WE NEED TO DO IT, I REALLY MEAN IT)
+  - Forget about bad tins? additional click seems funky now. Let's do trash can
+  - I just want cat, can I have cat?
+  - TIN positioning / text size
 
 ## Phase 4: Advanced Features
 

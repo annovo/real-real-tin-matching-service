@@ -1396,6 +1396,10 @@ function preload() {
     // Load thinking dot for processing animation
     this.load.image('thinkingDot', 'assets/images/effects/thinking-dot.png');
     
+    // Load TIN status icons
+    this.load.image('good', 'assets/images/effects/good.png');
+    this.load.image('bad', 'assets/images/effects/bad.png');
+    
     // Load wall assets
     this.load.image('wallpaper', 'assets/images/backgrounds/wallpaper.png');
     this.load.image('wallLining', 'assets/images/backgrounds/wall-lining.png');
@@ -1829,6 +1833,7 @@ function spawnBox() {
     const boxId = boxIdCounter++;
     const tin = generateRandomTIN();
     const validity = determineTINValidity(tin); // Determine validity at spawn
+    // Position TIN text in the center of paper
     const label = this.add
       .text(startX, paperY, tin, {
         fontSize: "16px",
@@ -1837,6 +1842,12 @@ function spawnBox() {
         align: "center",
       })
       .setOrigin(0.5);
+    
+    // Create status icon but don't show it initially (only show when processed)
+    const statusIcon = this.add.image(startX - 5, paperY, 'bad'); // Position 20px left from right side = -5px from center
+    statusIcon.setScale(0.1); // Small icon size
+    statusIcon.setDepth(boxDepth + 0.003); // Between paper and text
+    statusIcon.setVisible(false); // Hidden by default
     label.setDepth(boxDepth + 0.005); // Text slightly above this specific paper
     
     // Simple delta-based positioning: each box stops 60px back from the end
@@ -1876,7 +1887,14 @@ function spawnBox() {
     
     this.tweens.add({
         targets: label,
-        x: targetX,
+        x: targetX, // Keep label centered during animation
+        duration: slideTime,
+        ease: 'Linear'
+    });
+    
+    this.tweens.add({
+        targets: statusIcon,
+        x: targetX - 5, // Keep status icon 5px left of center during animation
         duration: slideTime,
         ease: 'Linear'
     });
@@ -1897,6 +1915,7 @@ function spawnBox() {
         validity: validity, // Store the predetermined validity
         sprite: box,
         label: label,
+        statusIcon: statusIcon, // Status icon (unknown/good/bad)
         x: startX,
         y: paperY,
         spawnTime: Date.now(), // Track when box was created
@@ -1912,10 +1931,12 @@ function spawnBox() {
         boxData.assignedVia = 'prevalidated';
         
         if (validity === 1) {
-            box.setTint(VALID_BOX_TINT); // Green tint for valid
+            statusIcon.setTexture('good'); // Good icon for valid
+            statusIcon.setVisible(true); // Show the icon
             label.setStyle({ fill: '#000000' }); // Black text for validated TINs
         } else {
-            box.setTint(INVALID_BOX_TINT); // Red tint for invalid
+            statusIcon.setTexture('bad'); // Bad icon for invalid
+            statusIcon.setVisible(true); // Show the icon
             label.setStyle({ fill: '#000000' }); // Black text for validated TINs
         }
         
@@ -2011,18 +2032,21 @@ function completeProcessing(boxToComplete) {
     boxToComplete.result = result;
     boxToComplete.assignedVia = 'irs'; // Mark as IRS machine result
     
-    // Change box tint and text color based on result
+    // Change status icon and text color based on result
     if (result === 1) {
-        boxToComplete.sprite.setTint(VALID_BOX_TINT); // Green tint for valid
+        boxToComplete.statusIcon.setTexture('good'); // Good icon for valid
+        boxToComplete.statusIcon.setVisible(true); // Show the icon
         boxToComplete.label.setStyle({ fill: '#000000' }); // Black text for validated TINs
     } else {
-        boxToComplete.sprite.setTint(INVALID_BOX_TINT); // Red tint for invalid
+        boxToComplete.statusIcon.setTexture('bad'); // Bad icon for invalid
+        boxToComplete.statusIcon.setVisible(true); // Show the icon
         boxToComplete.label.setStyle({ fill: '#000000' }); // Black text for validated TINs
     }
     
     // Show TIN text and paper again after processing
     boxToComplete.label.setVisible(true);
     boxToComplete.sprite.setVisible(true);
+    // Status icon visibility is already set above based on result
     
     // Clean up thinking dots animation
     if (boxToComplete.thinkingAnimation) {
@@ -2064,12 +2088,14 @@ function completeProcessing(boxToComplete) {
     boxToComplete.x = newX;
     boxToComplete.y = newY;
     boxToComplete.sprite.setPosition(newX, newY);
-    boxToComplete.label.setPosition(newX, newY);
+    boxToComplete.label.setPosition(newX, newY); // Keep label centered
+    boxToComplete.statusIcon.setPosition(newX - 5, newY); // Keep status icon 5px left of center
     
     // Set unique depth to prevent text overlap (use current boxIdCounter for uniqueness)
     const processedBoxDepth = TIN_PAPER_DEPTH + (boxIdCounter * 0.01);
     boxToComplete.sprite.setDepth(processedBoxDepth);
-    boxToComplete.label.setDepth(processedBoxDepth + 0.005); // Text slightly above box
+    boxToComplete.statusIcon.setDepth(processedBoxDepth + 0.003); // Icon above paper
+    boxToComplete.label.setDepth(processedBoxDepth + 0.005); // Text slightly above icon
     boxIdCounter++; // Increment for next unique depth
     
     // Add to boxes array so player can pick it up
@@ -2150,6 +2176,7 @@ function submitBox() {
     carriedBoxes.splice(processedIndex, 1);
     processedBox.sprite.destroy();
     processedBox.label.destroy();
+    processedBox.statusIcon.destroy(); // Also destroy the status icon
     
     console.log(`Total money: $${money}`);
 }
@@ -2206,6 +2233,7 @@ function submitAllBoxes() {
         carriedBoxes.splice(i, 1);
         box.sprite.destroy();
         box.label.destroy();
+        box.statusIcon.destroy(); // Also destroy the status icon
     }
     
     // Update displays
@@ -2258,6 +2286,8 @@ function processAllBoxes() {
         boxToProcess.label.setPosition(targetMachine.x, targetMachine.y + yOffset); // Center text on paper
         boxToProcess.label.setScale(1.0);
         boxToProcess.label.setVisible(false); // Hide TIN text during processing
+        boxToProcess.statusIcon.setPosition(targetMachine.x, targetMachine.y + yOffset); // Position status icon
+        boxToProcess.statusIcon.setVisible(false); // Hide status icon during processing
         
         // Create thinking dots animation above the IRS machine
         const thinkingDotsY = targetMachine.y + THINKING_DOTS_Y_OFFSET; // Position above IRS machine
@@ -2350,7 +2380,8 @@ function use0Card() {
             // Assign 0-card result to this unprocessed box
             targetBox.result = 0;
             targetBox.assignedVia = 'space';
-            targetBox.sprite.setTint(ZERO_CARD_TINT); // Red tint
+            targetBox.statusIcon.setTexture('bad'); // Bad icon for 0-card
+            targetBox.statusIcon.setVisible(true); // Show the icon
             targetBox.label.setStyle({ fill: '#000000' }); // Black text for validated TINs
             console.log(`Used 0-card on box #${targetBox.id} (index ${spaceCardIndex})`);
             
@@ -2681,10 +2712,15 @@ function update() {
         box.sprite.setScale(CARRIED_BOX_SCALE); // Make it smaller when carried
         box.sprite.setDepth(CARRIED_BOX_DEPTH); // Above belt boxes
         box.sprite.setVisible(true); // Make sure it's visible
-        box.label.setPosition(player.x + offsetX, player.y + offsetY); // Center the text on the banner
+        box.label.setPosition(player.x + offsetX, player.y + offsetY); // Position label centered on carried box
         box.label.setScale(CARRIED_BOX_SCALE); // Smaller label too
         box.label.setDepth(CARRIED_BOX_DEPTH + 0.005); // Text slightly above carried box
         box.label.setVisible(true);
+        box.statusIcon.setPosition(player.x + offsetX - 3, player.y + offsetY); // Position status icon 3px left of center when carried
+        box.statusIcon.setScale(CARRIED_BOX_SCALE * 0.17); // Even smaller icon when carried
+        box.statusIcon.setDepth(CARRIED_BOX_DEPTH + 0.003); // Icon above paper but below text
+        // Only show status icon if box has been processed (has result)
+        box.statusIcon.setVisible(box.result !== undefined);
     }
     
     // Update box positions for non-physics boxes
@@ -2699,7 +2735,10 @@ function update() {
                 box.isMoving = false;
             }
         }
-        box.label.setPosition(box.x, box.y);
+        box.label.setPosition(box.x, box.y); // Label centered
+        box.statusIcon.setPosition(box.x - 5, box.y); // Status icon 5px left of center
+        // Only show status icon if box has been processed (has result)
+        box.statusIcon.setVisible(box.result !== undefined);
     }
     
     // Update game timer (show elapsed time excluding paused time)
@@ -2730,6 +2769,7 @@ function update() {
             // Remove expired box and penalize happiness
             box.sprite.destroy();
             box.label.destroy();
+            box.statusIcon.destroy(); // Also destroy the status icon
             boxes.splice(i, 1);
             updateHappiness(-5);
             console.log(`Box #${box.id} expired after ${Math.floor(expirationTime/1000)}s. Mood -5.`);
