@@ -33,6 +33,8 @@ const BRIBE_SPEED_MULTIPLIER = 0.2; // 80% faster = 20% of original time
 // Distance Thresholds
 const PICKUP_DISTANCE = 60;
 const INTERACTION_DISTANCE = 96;
+const PROXIMITY_CHECK_INTERVAL = 150; // Check proximity every 150ms
+const PROXIMITY_DISTANCE = 96; // Standard proximity distance for auto actions
 const PLAYER_BOUNDARY_MARGIN_X = 45;
 const PLAYER_BOUNDARY_MARGIN_Y_TOP = 100; // Character can't go beyond 100px from top
 const PLAYER_BOUNDARY_MARGIN_Y_BOTTOM = 60; // Character can't go beyond 60px from bottom (10px bigger)
@@ -59,7 +61,7 @@ const THINKING_DOTS_Y_OFFSET = -60;
 const THINKING_DOTS_X_START_OFFSET = -25;
 const THINKING_DOTS_SPACING = 20;
 const CARRIED_BOX_X_SPACING = 18;
-const CARRIED_BOX_Y_OFFSET = -80;
+const CARRIED_BOX_Y_OFFSET = -50;
 const CARRIED_BOX_BASE_OFFSET = 0;
 
 // Game Balance/Economy
@@ -201,6 +203,7 @@ let animationTimer = 0; // Timer for animation frame switching
 let boxes = [];
 let boxIdCounter = 1;
 let carriedBoxes = [];
+let proximityCheckTimer = 0; // Timer for automatic pickup/drop actions
 let irsMachine;
 let irsMachine2;
 let phone; // Phone sprite reference for tint updates
@@ -1773,8 +1776,6 @@ function create() {
     keys.a = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
     keys.s = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S);
     keys.d = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
-    keys.e = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
-    keys.q = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
     keys.space = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     keys.c = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C);
     keys.b = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.B);
@@ -1975,37 +1976,6 @@ function pickupBox() {
         
         console.log(`Picked up box #${nearestBox.id} (${carriedBoxes.length}/${maxCapacity})`);
     }
-}
-
-// Function to drop carried box (drops the last one picked up)
-function dropBox() {
-    if (carriedBoxes.length === 0) return; // Not carrying anything
-    
-    const boxToDrop = carriedBoxes.pop(); // Remove last box
-    
-    // Place box at player's current position
-    boxToDrop.x = player.x;
-    boxToDrop.y = player.y;
-    boxToDrop.sprite.setPosition(player.x, player.y);
-    boxToDrop.label.setPosition(player.x, player.y); // Center text on banner
-    
-    // Show the box and label again
-    boxToDrop.sprite.setVisible(true);
-    boxToDrop.sprite.setScale(TIN_PAPER_SCALE); // Keep smaller size
-    boxToDrop.label.setVisible(true);
-    boxToDrop.label.setScale(1.0); // Reset to normal size
-    
-    // Add back to boxes array
-    boxes.push(boxToDrop);
-    
-    // Reset space card index when dropping boxes
-    if (carriedBoxes.length > 0) {
-        spaceCardIndex = spaceCardIndex % carriedBoxes.length;
-    } else {
-        spaceCardIndex = 0;
-    }
-    
-    console.log(`Dropped box #${boxToDrop.id} (${carriedBoxes.length} remaining)`);
 }
 
 // Function to process a box in the IRS machine (legacy single-box function - kept for compatibility)
@@ -2247,8 +2217,11 @@ function processAllBoxes() {
     // Debug: show which machine is being used
     console.log(`Processing on machine ${useMachine2 ? '2' : '1'} at (${targetMachine.x}, ${targetMachine.y})`);
     
+    // Use the correct processing array based on which machine is selected
+    const targetProcessingArray = useMachine2 ? processingBoxes2 : processingBoxes;
+    
     // Process up to available slots
-    const availableSlots = maxSlots - processingBoxes.length;
+    const availableSlots = maxSlots - targetProcessingArray.length;
     const boxesToProcess = Math.min(availableSlots, unprocessedBoxes.length);
     
     for (let i = 0; i < boxesToProcess; i++) {
@@ -2256,10 +2229,10 @@ function processAllBoxes() {
         const index = carriedBoxes.indexOf(boxToProcess);
         carriedBoxes.splice(index, 1);
         
-        processingBoxes.push(boxToProcess);
+        targetProcessingArray.push(boxToProcess);
         
         // Position box in machine (stack them vertically)
-        const slotIndex = processingBoxes.length - 1;
+        const slotIndex = targetProcessingArray.length - 1;
         const yOffset = PROCESSING_SLOT_BASE_Y + (slotIndex * PROCESSING_SLOT_SPACING);
         boxToProcess.sprite.setPosition(targetMachine.x, targetMachine.y + yOffset);
         boxToProcess.sprite.setScale(TIN_PAPER_SCALE); // Keep smaller size
@@ -2407,6 +2380,7 @@ function bribeIRS() {
 
 // Update function - main game loop
 function update() {
+    const currentTime = Date.now();
     // CRITICAL: Handle dialog dismissal FIRST before any other logic
     
     // Handle Y and ESC keys to dismiss welcome dialog
@@ -2612,37 +2586,48 @@ function update() {
     player.y = Phaser.Math.Clamp(player.y, PLAYER_BOUNDARY_MARGIN_Y_TOP, GAME_HEIGHT - PLAYER_BOUNDARY_MARGIN_Y_BOTTOM);
     
     
-    // Handle E key for pickup OR processing OR submission
-    if (Phaser.Input.Keyboard.JustDown(keys.e)) {
-        // Check if near return station first (for processed boxes)
+    // Automatic proximity-based actions (timer-based to prevent constant triggering)
+    if (proximityCheckTimer <= 0) {
+        // Priority 1: Submit processed boxes at return station
         const returnDistance = Phaser.Math.Distance.Between(player.x, player.y, returnStation.x, returnStation.y);
         const hasProcessedBox = carriedBoxes.some(box => box.result !== undefined);
-        if (returnDistance <= 96 && hasProcessedBox) {
-            // Submit ALL processed boxes
+        if (returnDistance <= PROXIMITY_DISTANCE && hasProcessedBox) {
             submitAllBoxes();
-        } else {
-            // Check if near IRS machine (for processing)
-            const machineDistance = Math.min(Phaser.Math.Distance.Between(player.x, player.y, irsMachine.x, irsMachine.y), 
-                                           Phaser.Math.Distance.Between(player.x, player.y, irsMachine2.x, irsMachine2.y));
+        }
+        // Priority 2: Drop unprocessed boxes at IRS machines  
+        else {
             const hasUnprocessedBox = carriedBoxes.some(box => box.result === undefined);
-            const maxSlots = getCurrentLevel().irsSlots;
-            if (machineDistance <= 96 && processingBoxes.length < maxSlots && hasUnprocessedBox) {
-                // Process ALL unprocessed boxes
+            
+            // Check which machine is closest and if it's available
+            const distance1 = Phaser.Math.Distance.Between(player.x, player.y, irsMachine.x, irsMachine.y);
+            const distance2 = Phaser.Math.Distance.Between(player.x, player.y, irsMachine2.x, irsMachine2.y);
+            const nearMachine1 = distance1 <= PROXIMITY_DISTANCE;
+            const nearMachine2 = distance2 <= PROXIMITY_DISTANCE && irsMachine2.visible;
+            
+            // Check if specific machines are available (not actively processing)
+            const machine1HasActiveProcessing = processingBoxes.some(box => box.result === undefined);
+            const machine2HasActiveProcessing = processingBoxes2.some(box => box.result === undefined);
+            const machine1Available = nearMachine1 && !machine1HasActiveProcessing;
+            const machine2Available = nearMachine2 && !machine2HasActiveProcessing;
+            
+            // Process if any machine is available and we have unprocessed boxes
+            if ((machine1Available || machine2Available) && hasUnprocessedBox) {
                 processAllBoxes();
-            } else {
-                // Try to pick up (if not at capacity)
+            }
+            // Priority 3: Initial pickup from belt
+            else {
                 const maxCapacity = getCurrentLevel().carryCapacity;
                 if (carriedBoxes.length < maxCapacity) {
                     pickupBox();
                 }
             }
         }
+        
+        proximityCheckTimer = PROXIMITY_CHECK_INTERVAL; // Reset timer
     }
+    proximityCheckTimer -= game.loop.delta; // Decrease timer each frame
     
-    // Handle Q key for drop
-    if (Phaser.Input.Keyboard.JustDown(keys.q)) {
-        dropBox();
-    }
+    
     
     // Handle B key for 0-card shortcut
     if (Phaser.Input.Keyboard.JustDown(keys.b)) {
@@ -2714,7 +2699,6 @@ function update() {
     
     // Check for expired boxes
     const expirationTime = getBoxExpirationTime();
-    const currentTime = Date.now();
     
     for (let i = boxes.length - 1; i >= 0; i--) {
         const box = boxes[i];
