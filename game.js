@@ -2058,6 +2058,12 @@ function completeProcessing(boxToComplete) {
     boxToComplete.sprite.setPosition(newX, newY);
     boxToComplete.label.setPosition(newX, newY);
     
+    // Set unique depth to prevent text overlap (use current boxIdCounter for uniqueness)
+    const processedBoxDepth = TIN_PAPER_DEPTH + (boxIdCounter * 0.01);
+    boxToComplete.sprite.setDepth(processedBoxDepth);
+    boxToComplete.label.setDepth(processedBoxDepth + 0.005); // Text slightly above box
+    boxIdCounter++; // Increment for next unique depth
+    
     // Add to boxes array so player can pick it up
     boxes.push(boxToComplete);
     
