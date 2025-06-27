@@ -1994,9 +1994,17 @@ function processBox() {
 function completeProcessing(boxToComplete) {
     if (!boxToComplete) return;
     
-    // Find the box in processing array
-    const index = processingBoxes.findIndex(box => box === boxToComplete);
-    if (index === -1) return;
+    // Find the box in processing arrays (check both machines)
+    let index = processingBoxes.findIndex(box => box === boxToComplete);
+    let isFromMachine2 = false;
+    
+    if (index === -1) {
+        // Check second machine's processing array
+        index = processingBoxes2.findIndex(box => box === boxToComplete);
+        isFromMachine2 = true;
+    }
+    
+    if (index === -1) return; // Box not found in either array
     
     // IRS machine returns the predetermined validity
     const result = boxToComplete.validity;
@@ -2067,8 +2075,12 @@ function completeProcessing(boxToComplete) {
     // Add to boxes array so player can pick it up
     boxes.push(boxToComplete);
     
-    // Remove from processing array
-    processingBoxes.splice(index, 1);
+    // Remove from the correct processing array
+    if (isFromMachine2) {
+        processingBoxes2.splice(index, 1);
+    } else {
+        processingBoxes.splice(index, 1);
+    }
     
     // Clean up bribe border if it exists
     if (boxToComplete.bribeBorder) {
