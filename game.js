@@ -59,8 +59,8 @@ const THINKING_DOTS_Y_OFFSET = -60;
 const THINKING_DOTS_X_START_OFFSET = -25;
 const THINKING_DOTS_SPACING = 20;
 const CARRIED_BOX_X_SPACING = 18;
-const CARRIED_BOX_Y_OFFSET = -24;
-const CARRIED_BOX_BASE_OFFSET = 24;
+const CARRIED_BOX_Y_OFFSET = -80;
+const CARRIED_BOX_BASE_OFFSET = 0;
 
 // Game Balance/Economy
 const INITIAL_ELECTION_TIME = 30000;
@@ -94,6 +94,7 @@ const VERTICAL_WALLS_DEPTH = 3;    // Above lining
 const TOP_EDGE_DEPTH = 5;          // Above walls
 const STATION_DEPTH = 6;           // Above floor and walls
 const TIN_PAPER_DEPTH = 7;         // Above stations and text
+const CARRIED_BOX_DEPTH = 9;       // Above TIN papers but below player
 const PLAYER_DEPTH = 10;           // Above stations and walls
 const THINKING_DOTS_DEPTH = 11;    // Above player
 const PAUSE_TEXT_DEPTH = 1000;     // UI layer
@@ -2675,9 +2676,11 @@ function update() {
         
         box.sprite.setPosition(player.x + offsetX, player.y + offsetY);
         box.sprite.setScale(CARRIED_BOX_SCALE); // Make it smaller when carried
+        box.sprite.setDepth(CARRIED_BOX_DEPTH); // Above belt boxes
         box.sprite.setVisible(true); // Make sure it's visible
         box.label.setPosition(player.x + offsetX, player.y + offsetY); // Center the text on the banner
         box.label.setScale(CARRIED_BOX_SCALE); // Smaller label too
+        box.label.setDepth(CARRIED_BOX_DEPTH + 0.005); // Text slightly above carried box
         box.label.setVisible(true);
     }
     
