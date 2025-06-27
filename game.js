@@ -2551,22 +2551,22 @@ function update() {
     let movingLeft = false;
     let movingRight = false;
     
-    // Check WASD keys and move player
-    if (keys.w.isDown) {
+    // Check WASD and Arrow keys and move player
+    if (keys.w.isDown || keys.up.isDown) {
         player.y -= speed * this.sys.game.loop.delta / 1000;
         isMoving = true;
     }
-    if (keys.s.isDown) {
+    if (keys.s.isDown || keys.down.isDown) {
         player.y += speed * this.sys.game.loop.delta / 1000;
         isMoving = true;
     }
-    if (keys.a.isDown) {
+    if (keys.a.isDown || keys.left.isDown) {
         player.x -= speed * this.sys.game.loop.delta / 1000;
         isMoving = true;
         movingLeft = true;
         lastDirection = 'left';
     }
-    if (keys.d.isDown) {
+    if (keys.d.isDown || keys.right.isDown) {
         player.x += speed * this.sys.game.loop.delta / 1000;
         isMoving = true;
         movingRight = true;
