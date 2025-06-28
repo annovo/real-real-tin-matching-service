@@ -177,6 +177,11 @@ const CAT_ANIMATION_DELAY = 1000; // Switch between images every second
 const CAT_WAKE_INTERVAL = 10000; // Cat wakes up every 30 seconds
 const CAT_PROXIMITY_DISTANCE = 100; // Distance for cat interaction
 const CAT_BALL_DURATION = 10000; // Player immobilized for 10 seconds
+const BROKEN_HEART_SCALE = 0.03; // Scale for broken heart effect
+const UPSET_MOOD_SCALE = 0.1; // Scale for upset mood effect
+const BROKEN_HEART_DURATION = 1500; // Duration of broken heart animation in ms
+const BROKEN_HEART_ZIG_ZAG_DISTANCE = 30; // Distance for zig-zag movement
+const BROKEN_HEART_DEPTH = 10; // Above everything else
 const PLANT_SCALE = 0.133; // 1.5x smaller (0.2 / 1.5 = 0.133)
 const CAT_FOOD_SCALE = 0.07; // Small cat food bowl
 const CAT_FOOD_DEPTH = 6; // Above plant, below cat
@@ -1456,6 +1461,12 @@ function preload() {
     this.load.image('good', 'assets/images/effects/good.png');
     this.load.image('bad', 'assets/images/effects/bad.png');
     
+    // Load broken heart effect for cat mood
+    this.load.image('brokenHeart', 'assets/images/effects/broken-heart.png');
+    
+    // Load upset mood effect for timeout and trash errors
+    this.load.image('upsetMood', 'assets/images/ui/upset-mood.png');
+    
     // Load wall assets
     this.load.image('wallpaper', 'assets/images/backgrounds/wallpaper.png');
     this.load.image('wallLining', 'assets/images/backgrounds/wall-lining.png');
@@ -2395,6 +2406,10 @@ function submitToTrashCan() {
             // Good TIN (validity = 1) - penalize for wrong disposal
             updateHappiness(-10);
             console.log(`WRONG! Trashed good TIN #${box.id} (${box.tin}). No payment. Mood -10.`);
+            
+            // Create upset mood animation above trash can
+            const scene = game.scene.scenes[0];
+            createMoodAnimation(scene, trashCan.x, trashCan.y - 30, 'upsetMood', 0xFFFF00, UPSET_MOOD_SCALE);
         }
         
         // Remove the box
@@ -2577,6 +2592,36 @@ function buyCatFood() {
         catWakeTimer = CAT_WAKE_INTERVAL;
         console.log("Cat was fed and sleep was extended");
     }
+}
+
+// Create mood animation with specified image
+function createMoodAnimation(scene, x, y, imageName = 'brokenHeart', fallbackColor = 0xFF0000, scale = BROKEN_HEART_SCALE) {
+    let moodSprite;
+    
+    // Try to load image, fallback to circle
+    if (scene.textures.exists(imageName)) {
+        moodSprite = scene.add.image(x, y, imageName);
+        console.log(`${imageName} image created at:`, x, y);
+    } else {
+        moodSprite = scene.add.circle(x, y, 20, fallbackColor);
+        console.log(`Fallback circle created at:`, x, y);
+    }
+    
+    moodSprite.setScale(scale);
+    moodSprite.setDepth(BROKEN_HEART_DEPTH);
+    moodSprite.setAlpha(1);
+    
+    // Create straight upward movement with fade
+    scene.tweens.add({
+        targets: moodSprite,
+        y: y - 80,
+        alpha: 0,
+        duration: 1500,
+        ease: 'Power2.easeOut',
+        onComplete: () => {
+            moodSprite.destroy();
+        }
+    });
 }
 
 // Update function - main game loop
@@ -2853,6 +2898,14 @@ function update() {
             updateHappiness(-1); // Decrease mood by 1
             catMoodTimer = 1000; // Reset timer for next second
             console.log("Cat is hungry - mood decreased by 1");
+            
+            // Create broken heart animation above the cat
+            if (this.cat) {
+                console.log("Triggering broken heart animation");
+                createMoodAnimation(this, this.cat.x, this.cat.y - 50, 'brokenHeart', 0xFF0000);
+            } else {
+                console.log("No cat object found for broken heart animation");
+            }
         }
     }
     
@@ -2994,12 +3047,19 @@ function update() {
         const boxAge = currentTime - box.spawnTime - (box.pausedDuringLife || 0);
         if (boxAge > expirationTime) {
             // Remove expired box and penalize happiness
+            const boxX = box.sprite.x;
+            const boxY = box.sprite.y;
+            
             box.sprite.destroy();
             box.label.destroy();
             box.statusIcon.destroy(); // Also destroy the status icon
             boxes.splice(i, 1);
             updateHappiness(-5);
             console.log(`Box #${box.id} expired after ${Math.floor(expirationTime/1000)}s. Mood -5.`);
+            
+            // Create upset mood animation at box position
+            const scene = game.scene.scenes[0];
+            createMoodAnimation(scene, boxX, boxY, 'upsetMood', 0xFFFF00, UPSET_MOOD_SCALE);
         }
     }
 }
