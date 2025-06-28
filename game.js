@@ -265,6 +265,7 @@ let premiumProcessingDialogShown = false; // Track if premium processing dialog 
 let premiumProcessingDialogActive = false; // Track if premium processing dialog is currently active
 let breachOfTrustDialogActive = false; // Track if breach of trust dialog is currently active
 let promotionDialogActive = false; // Track if promotion dialog is currently active
+let catIntroDialogActive = false; // Track if cat introduction dialog is currently active
 let dialogQueue = []; // Queue for dialogs to prevent overlapping
 let premiumProcessingUses = 0; // Track how many instant processing uses are available
 
@@ -277,6 +278,7 @@ let catInBallMode = false; // Track if cat is in ball mode
 let catBallTimer = 0; // Timer for ball mode duration
 let playerImmobilized = false; // Track if player movement is disabled
 let purringPlaying = false; // Track if purring sound is currently playing
+let catFirstWakeDialogShown = false; // Track if first wake dialog has been shown
 
 // List of obviously bad TINs that should always be invalid
 const badTINs = ['000000000', '111111111', '999999999', '123456789'];
@@ -373,6 +375,11 @@ function checkPromotion() {
 function showWelcomeDialog() {
     const scene = game.scene.scenes[0];
     
+    // Play email sound for dialog notification
+    if (scene.emailSound) {
+        scene.emailSound.play();
+    }
+    
     // Pause the game while dialog is shown
     gameIsPaused = true;
     
@@ -445,6 +452,10 @@ Now, you've been chosen to maintain this masterpiece. Good luck!`;
 function showResponsibilitiesDialog() {
     const scene = game.scene.scenes[0];
     
+    // Play email sound for dialog notification
+    if (scene.emailSound) {
+        scene.emailSound.play();
+    }
     // Pause the game while dialog is shown
     gameIsPaused = true;
     
@@ -515,6 +526,11 @@ But deliver excellent work, and who knows — a promotion might be waiting for y
 function showOneMoreThingDialog() {
     const scene = game.scene.scenes[0];
     
+    // Play email sound for dialog notification
+    if (scene.emailSound) {
+        scene.emailSound.play();
+    }
+
     // Pause the game while dialog is shown
     gameIsPaused = true;
     
@@ -629,6 +645,11 @@ function actuallyShowPremiumProcessingDialog() {
     const scene = game.scene.scenes[0];
     
     console.log("showPremiumProcessingDialog called - setting premiumProcessingDialogActive to true");
+    // Play email sound for dialog notification
+    if (scene.emailSound) {
+        scene.emailSound.play();
+    }
+    
     // Pause the game while dialog is shown
     gameIsPaused = true;
     premiumProcessingDialogActive = true;
@@ -682,8 +703,8 @@ It'll cost you extra ($${bribeCost}), but what a joy it is to get your results i
     acceptButton.setScale(0.08);
     acceptButton.setDepth(DIALOG_DEPTH + 1);
     
-    // "Accept (Y)" text on the button
-    const buttonText = scene.add.text(buttonX, buttonY, 'Accept (Y)', {
+    // "Noted" text on the button
+    const buttonText = scene.add.text(buttonX, buttonY, 'Noted', {
         fontSize: '14px',
         fill: '#000000',
         fontFamily: '"Jersey 15", sans-serif',
@@ -782,6 +803,11 @@ function showBreachOfTrustDialog() {
 function actuallyShowBreachOfTrustDialog() {
     const scene = game.scene.scenes[0];
     
+    // Play email sound for dialog notification
+    if (scene.emailSound) {
+        scene.emailSound.play();
+    }
+    
     // Pause the game while dialog is shown
     gameIsPaused = true;
     breachOfTrustDialogActive = true;
@@ -839,8 +865,8 @@ Please don't leave.
     acceptButton.setDepth(DIALOG_DEPTH + 1);
     
     // "Accept (Y)" text on the button
-    const buttonText = scene.add.text(buttonX, buttonY, 'Accept (Y)', {
-        fontSize: '14px',
+    const buttonText = scene.add.text(buttonX, buttonY, 'Bye', {
+        fontSize: '20px',
         fill: '#000000',
         fontFamily: '"Jersey 15", sans-serif',
         align: 'center',
@@ -877,6 +903,11 @@ function showPromotionDialog(levelName) {
 // Function to actually show promotion dialog
 function actuallyShowPromotionDialog(levelName) {
     const scene = game.scene.scenes[0];
+    
+    // Play email sound for dialog notification
+    if (scene.emailSound) {
+        scene.emailSound.play();
+    }
     
     // Pause the game while dialog is shown
     gameIsPaused = true;
@@ -943,8 +974,8 @@ Don't break our hearts.`;
     acceptButton.setDepth(DIALOG_DEPTH + 1);
     
     // "Accept (Y)" text on the button
-    const buttonText = scene.add.text(buttonX, buttonY, 'Accept (Y)', {
-        fontSize: '14px',
+    const buttonText = scene.add.text(buttonX, buttonY, 'Great', {
+        fontSize: '20px',
         fill: '#000000',
         fontFamily: '"Jersey 15", sans-serif',
         align: 'center',
@@ -991,7 +1022,7 @@ function processDialogQueue() {
     console.log(`Dialog states - premium: ${premiumProcessingDialogActive}, promotion: ${promotionDialogActive}, breach: ${breachOfTrustDialogActive}, welcome: ${welcomeDialogActive}`);
     
     // Don't process if any dialog is currently active (exclude welcome dialog after game starts)
-    if (premiumProcessingDialogActive || promotionDialogActive || breachOfTrustDialogActive) {
+    if (premiumProcessingDialogActive || promotionDialogActive || breachOfTrustDialogActive || catIntroDialogActive) {
         console.log("Dialog currently active, not processing queue");
         return;
     }
@@ -1011,10 +1042,116 @@ function processDialogQueue() {
             case 'breach':
                 actuallyShowBreachOfTrustDialog();
                 break;
+            case 'catIntro':
+                actuallyShowCatIntroDialog();
+                break;
         }
     } else {
         console.log("Queue is empty");
     }
+}
+
+// Function to show cat introduction dialog
+function actuallyShowCatIntroDialog() {
+    const scene = game.scene.scenes[0];
+    
+    console.log("showCatIntroDialog called - setting catIntroDialogActive to true");
+    // Play email sound for dialog notification
+    if (scene.emailSound) {
+        scene.emailSound.play();
+    }
+    
+    // Pause the game while dialog is shown
+    gameIsPaused = true;
+    catIntroDialogActive = true;
+    
+    // Create dialog background
+    const dialogBg = scene.add.image(DIALOG_X, DIALOG_Y, 'dialog');
+    dialogBg.setScale(DIALOG_SCALE);
+    dialogBg.setDepth(DIALOG_DEPTH);
+    
+    // Subject text
+    const subjectText = scene.add.text(DIALOG_X - 150, DIALOG_Y + DIALOG_TITLE_Y_OFFSET - 100, 'Subject:', {
+        fontSize: '32px',
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'left',
+        fontWeight: '600'
+    }).setOrigin(0, 0.5);
+    subjectText.setDepth(DIALOG_DEPTH + 1);
+    
+    // "Feline Acquisition" text
+    const titleText = scene.add.text(DIALOG_X + 80, DIALOG_Y + DIALOG_TITLE_Y_OFFSET - 100, 'Feline Acquisition', {
+        fontSize: DIALOG_TITLE_FONT_SIZE,
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'center',
+        fontStyle: 'bold'
+    }).setOrigin(0.5);
+    titleText.setDepth(DIALOG_DEPTH + 1);
+    
+    // Main dialog text
+    const dialogText = `Oh, you brought a cat.
+
+Technically, our policy doesn't allow this.
+
+…Aw, look at it purring.
+
+Actually, never mind — this cat seems to be a highly valuable asset we weren't briefed on. You'd better keep it happy. Spend time with it, feed it (F) — we don't care how.
+
+It seems our mood now depends entirely on this cat.
+
+Carry on.`;
+    
+    const mainText = scene.add.text(DIALOG_X, DIALOG_Y + DIALOG_TEXT_Y_OFFSET + 60, dialogText, {
+        fontSize: DIALOG_TEXT_FONT_SIZE,
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'left',
+        wordWrap: { width: DIALOG_TEXT_MAX_WIDTH }
+    }).setOrigin(0.5);
+    mainText.setDepth(DIALOG_DEPTH + 1);
+    
+    // Accept button at bottom right corner of dialog
+    const buttonX = DIALOG_X + 115;
+    const buttonY = DIALOG_Y + 154;
+    
+    const acceptButton = scene.add.image(buttonX, buttonY, 'button');
+    acceptButton.setScale(0.08);
+    acceptButton.setDepth(DIALOG_DEPTH + 1);
+    
+    const buttonText = scene.add.text(buttonX, buttonY, 'OK', {
+        fontSize: '20px',
+        fill: '#000000',
+        fontFamily: '"Jersey 15", sans-serif',
+        align: 'center',
+        fontWeight: 'bold'
+    }).setOrigin(0.5);
+    buttonText.setDepth(DIALOG_DEPTH + 2);
+    
+    // Store dialog elements for cleanup
+    scene.catIntroDialogUI = [dialogBg, subjectText, titleText, mainText, acceptButton, buttonText];
+}
+
+// Function to close cat introduction dialog
+function closeCatIntroDialog() {
+    const scene = game.scene.scenes[0];
+    
+    console.log("closeCatIntroDialog called - setting catIntroDialogActive to false");
+    if (scene.catIntroDialogUI) {
+        scene.catIntroDialogUI.forEach(element => element.destroy());
+        scene.catIntroDialogUI = null;
+    }
+    
+    // Resume game
+    catIntroDialogActive = false;
+    gameIsPaused = false;
+    
+    console.log("Cat intro dialog closed, processing queue...");
+    // Process next dialog in queue after a short delay to prevent same key press from dismissing next dialog
+    setTimeout(() => {
+        processDialogQueue();
+    }, 100);
 }
 
 // Function to switch to next music track
@@ -1053,6 +1190,8 @@ function updatePhoneTint() {
             // Apply grey tint when player doesn't have enough money
             phone.setTint(0x888888);
         }
+    } else {
+        console.warn('Phone sprite not found when trying to update tint');
     }
 }
 
@@ -1533,7 +1672,16 @@ function preload() {
     }
     
     // Load cat purring sound
-    this.load.audio('purring', 'assets/audio/effects/purring.mp3');
+    this.load.audio('purring', 'assets/audio/effects/purring.wav');
+    
+    // Load ding sound for money spending
+    this.load.audio('ding', 'assets/audio/effects/ding.wav');
+    
+    // Load gear sound for IRS processing
+    this.load.audio('gear', 'assets/audio/effects/gear.flac');
+    
+    // Load email sound for dialog notifications
+    this.load.audio('email', 'assets/audio/effects/email.wav');
     
     // Load dialog UI
     this.load.image('dialog', 'assets/images/ui/dialog.png');
@@ -1788,7 +1936,6 @@ function create() {
     // Add phone 100px above the IRS machine
     phone = this.add.image(IRS_MACHINE_X - 14, IRS_MACHINE_Y - 120, 'phone');
     phone.setScale(IRS_MACHINE_SCALE * 0.35); // 2x smaller
-    phone.setTint(0x888888); // Grey tint (default when no money)
     updatePhoneTint(); // Set initial tint based on starting money
     
     // Add bribe rate text above the phone
@@ -1885,8 +2032,21 @@ function create() {
     
     // Create purring sound (50% of main music volume)
     this.purringSound = this.sound.add('purring', { 
-        volume: BACKGROUND_MUSIC_VOLUME * 7, 
+        volume: BACKGROUND_MUSIC_VOLUME * 9, 
         loop: true 
+    });
+    
+    this.dingSound = this.sound.add('ding', {
+        volume: BACKGROUND_MUSIC_VOLUME
+    });
+    
+    this.gearSound = this.sound.add('gear', {
+        volume: BACKGROUND_MUSIC_VOLUME,
+        loop: true
+    });
+    
+    this.emailSound = this.sound.add('email', {
+        volume: BACKGROUND_MUSIC_VOLUME * 4
     });
     
     // Set up page visibility API to pause/resume music when tab is active/inactive
@@ -2233,6 +2393,13 @@ function completeProcessing(boxToComplete) {
         processingBoxes.splice(index, 1);
     }
     
+    // Stop gear sound if no more boxes are processing
+    const scene = game.scene.scenes[0];
+    if (scene.gearSound && scene.gearSound.isPlaying && 
+        processingBoxes.length === 0 && processingBoxes2.length === 0) {
+        scene.gearSound.stop();
+    }
+    
     // Clean up bribe border if it exists
     if (boxToComplete.bribeBorder) {
         boxToComplete.bribeBorder.destroy();
@@ -2521,6 +2688,14 @@ function processAllBoxes() {
         boxToProcess.processingStartTime = Date.now();
         boxToProcess.originalProcessingTime = processingTime;
         
+        // Start gear sound for processing (skip for premium processing since it's instant)
+        if (processingTime > 100) { // Only play sound for normal processing (not premium)
+            const scene = game.scene.scenes[0];
+            if (scene.gearSound && !scene.gearSound.isPlaying) {
+                scene.gearSound.play();
+            }
+        }
+        
         setTimeout(() => {
             completeProcessing(boxToProcess);
         }, processingTime);
@@ -2550,6 +2725,12 @@ function bribeIRS() {
     money -= baseCost;
     updatePhoneTint(); // Update phone tint based on new money amount
     updateCatFoodTint(); // Update cat food tint based on new money amount
+    
+    // Play ding sound for money spending
+    const scene = game.scene.scenes[0];
+    if (scene.dingSound) {
+        scene.dingSound.play();
+    }
     premiumProcessingUses = 5;
     updatePremiumProcessingDisplay(); // Update the display
     updateCatFoodPriceDisplay(); // Update cat food price display
@@ -2572,6 +2753,12 @@ function buyCatFood() {
     
     // Pay the cost
     money -= catFoodPrice;
+    
+    // Play ding sound for money spending
+    const scene = game.scene.scenes[0];
+    if (scene.dingSound) {
+        scene.dingSound.play();
+    }
     
     // Update displays
     updatePhoneTint(); // Update phone tint based on new money amount
@@ -2601,7 +2788,6 @@ function createMoodAnimation(scene, x, y, imageName = 'brokenHeart', fallbackCol
     // Try to load image, fallback to circle
     if (scene.textures.exists(imageName)) {
         moodSprite = scene.add.image(x, y, imageName);
-        console.log(`${imageName} image created at:`, x, y);
     } else {
         moodSprite = scene.add.circle(x, y, 20, fallbackColor);
         console.log(`Fallback circle created at:`, x, y);
@@ -2725,9 +2911,48 @@ function update() {
         }
     }
     
+    // Handle Y and ESC keys to dismiss cat introduction dialog
+    if (catIntroDialogActive) {
+        if (
+          Phaser.Input.Keyboard.JustDown(keys.y) ||
+          Phaser.Input.Keyboard.JustDown(keys.esc)
+        ) {
+          console.log("Y/ESC JustDown detected - closing cat intro dialog");
+          closeCatIntroDialog();
+          return;
+        }
+        
+        // Alternative: Check if Y/ESC key was just pressed using different method
+        if (
+          (keys.y.isDown && !keys.y.wasDown) ||
+          (keys.esc.isDown && !keys.esc.wasDown)
+        ) {
+          console.log("Y/ESC key state change detected - closing cat intro dialog");
+          closeCatIntroDialog();
+          return;
+        }
+        
+        // Alternative: Use direct key event listening
+        if (keys.y.isDown || keys.esc.isDown) {
+            console.log("Y/ESC key is currently pressed - closing cat intro dialog");
+            closeCatIntroDialog();
+            return;
+        }
+    }
+    
+    // Track pause time for boxes during dialogs
+    if (premiumProcessingDialogActive || breachOfTrustDialogActive || promotionDialogActive || catIntroDialogActive) {
+        const deltaTime = game.loop.delta;
+        boxes.forEach(box => {
+            if (!box.pausedDuringLife) {
+                box.pausedDuringLife = 0;
+            }
+            box.pausedDuringLife += deltaTime;
+        });
+    }
     
     // Skip all game logic if paused (except during elections, results, and dialogs)
-    if (gameIsPaused && !isElectionActive && !this.electionResultsUI && !welcomeDialogActive && !premiumProcessingDialogActive && !breachOfTrustDialogActive && !promotionDialogActive) {
+    if (gameIsPaused && !isElectionActive && !this.electionResultsUI && !welcomeDialogActive && !premiumProcessingDialogActive && !breachOfTrustDialogActive && !promotionDialogActive && !catIntroDialogActive) {
         // This condition should normally not occur since we removed manual pause
         // but keeping it as a safety check
         return;
@@ -2880,19 +3105,25 @@ function update() {
     }
     proximityCheckTimer -= game.loop.delta; // Decrease timer each frame
     
-    // Handle cat wake timer
-    if (!gameIsPaused && gameStartTime) {
+    // Handle cat wake timer (but not while being petted)
+    if (!gameIsPaused && gameStartTime && !catInBallMode) {
         catWakeTimer -= game.loop.delta;
         if (catWakeTimer <= 0 && !catIsAwake) {
             // Cat wakes up and stays awake until fed
             catIsAwake = true;
             catMoodTimer = 1000; // Reset mood timer when cat wakes up
             console.log("Cat woke up and is waiting for food");
+            
+            // Show cat introduction dialog on first wake
+            if (!catFirstWakeDialogShown) {
+                catFirstWakeDialogShown = true;
+                queueDialog('catIntro');
+            }
         }
     }
     
-    // Handle cat mood penalty when awake
-    if (!gameIsPaused && gameStartTime && catIsAwake && !catInBallMode) {
+    // Handle cat mood penalty when awake (but not during cat introduction dialog)
+    if (!gameIsPaused && gameStartTime && catIsAwake && !catInBallMode && !catIntroDialogActive) {
         catMoodTimer -= game.loop.delta;
         if (catMoodTimer <= 0) {
             updateHappiness(-1); // Decrease mood by 1
@@ -2901,7 +3132,6 @@ function update() {
             
             // Create broken heart animation above the cat
             if (this.cat) {
-                console.log("Triggering broken heart animation");
                 createMoodAnimation(this, this.cat.x, this.cat.y - 50, 'brokenHeart', 0xFF0000);
             } else {
                 console.log("No cat object found for broken heart animation");
@@ -2938,7 +3168,8 @@ function update() {
             // Player moved away from cat
             catInBallMode = false;
             this.cat.x -= 5; // Move cat back to original position
-            console.log("Player stopped petting cat");
+            const sleepTimeLeft = Math.max(0, catWakeTimer / 1000);
+            console.log(`Player stopped petting cat. Cat should sleep for ${sleepTimeLeft.toFixed(1)}s. Cat awake: ${catIsAwake}`);
         }
     }
     
@@ -3034,10 +3265,11 @@ function update() {
     }
     */
     
-    // Check for expired boxes
-    const expirationTime = getBoxExpirationTime();
-    
-    for (let i = boxes.length - 1; i >= 0; i--) {
+    // Check for expired boxes (but not during dialogs)
+    if (!premiumProcessingDialogActive && !breachOfTrustDialogActive && !promotionDialogActive && !catIntroDialogActive) {
+        const expirationTime = getBoxExpirationTime();
+        
+        for (let i = boxes.length - 1; i >= 0; i--) {
         const box = boxes[i];
         
         // Skip if box is being processed or already processed
@@ -3061,6 +3293,7 @@ function update() {
             const scene = game.scene.scenes[0];
             createMoodAnimation(scene, boxX, boxY, 'upsetMood', 0xFFFF00, UPSET_MOOD_SCALE);
         }
+    }
     }
 }
 

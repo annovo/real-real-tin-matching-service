@@ -161,8 +161,7 @@
   - Control hints/tooltips
   - Progress indicators
 - [ ] **Improve TIN processing workflow** - Enhanced IRS machine behavior:
-  - Balance game (WE NEED TO DO IT, I REALLY MEAN IT)
-  - Cat dialog appears 
+  - Balance game (WE NEED TO DO IT, I REALLY MEAN IT, THE FINAL PATH)
 
 ## Phase 4: Advanced Features
 
