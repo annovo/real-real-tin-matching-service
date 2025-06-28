@@ -164,12 +164,29 @@ const TABLES_SCALE = 0.6; // 2x bigger (was 0.3, now 0.6)
 const TABLES_DEPTH = 5; // Above walls, visible on floor
 const PLANT_X = 65; // Moved 5px more to the right
 const PLANT_Y = GAME_HEIGHT - 100; // 100px from bottom
+const CAT_FOOD_X = PLANT_X; // Same X position as plant
+const CAT_FOOD_Y = PLANT_Y - 150; // 150px above the plant
+const CAT_FOOD_PRICE_X = CAT_FOOD_X; // Same X as cat food
+const CAT_FOOD_PRICE_Y = CAT_FOOD_Y - 40; // above cat food
 const CAT_X = PLANT_X + 70; // 70px to the right of the plant (50px more)
 const CAT_Y = RETURN_STATION_Y - 20; // Slightly above the hole
-const CAT_SCALE = 0.3; // Appropriate size
+const CAT_SCALE = 0.3; // Scale when sleeping
+const CAT_AWAKE_SCALE = 0.27; // Smaller scale when awake/standing
 const CAT_DEPTH = 7; // Above stations
 const CAT_ANIMATION_DELAY = 1000; // Switch between images every second
+const CAT_WAKE_INTERVAL = 10000; // Cat wakes up every 30 seconds
+const CAT_PROXIMITY_DISTANCE = 100; // Distance for cat interaction
+const CAT_BALL_DURATION = 10000; // Player immobilized for 10 seconds
 const PLANT_SCALE = 0.133; // 1.5x smaller (0.2 / 1.5 = 0.133)
+const CAT_FOOD_SCALE = 0.07; // Small cat food bowl
+const CAT_FOOD_DEPTH = 6; // Above plant, below cat
+
+// Function to get cat food price (same as premium processing cost for now)
+function getCatFoodPrice() {
+    const currentLevel = getCurrentLevel();
+    return currentLevel.bribeCost;
+}
+
 const PLANT_DEPTH = 6; // Above stations
 const WALLPAPER_FALLBACK_COLOR = 0x8B4513; // Brown color
 const WALL_LINING_FALLBACK_COLOR = 0x654321; // Dark brown color
@@ -210,6 +227,7 @@ let proximityCheckTimer = 0; // Timer for automatic pickup/drop actions
 let irsMachine;
 let irsMachine2;
 let phone; // Phone sprite reference for tint updates
+let catFood; // Cat food sprite reference for tint updates
 let processingBoxes = [];
 let processingBoxes2 = []; // Processing boxes for second machine
 let processingStatus;
@@ -237,12 +255,23 @@ let isElectionActive = false; // Track if election is currently happening
 let welcomeDialogActive = true; // Track if welcome dialog should be shown
 let dialogStep = 1; // Track which dialog step we're on (1 = hired, 2 = responsibilities, 3 = one more thing)
 let briberateText; // Reference to the bribe rate text displayed above the phone
+let catFoodPriceText; // Reference to the cat food price text displayed above the cat food
 let premiumProcessingDialogShown = false; // Track if premium processing dialog has been shown
 let premiumProcessingDialogActive = false; // Track if premium processing dialog is currently active
 let breachOfTrustDialogActive = false; // Track if breach of trust dialog is currently active
 let promotionDialogActive = false; // Track if promotion dialog is currently active
 let dialogQueue = []; // Queue for dialogs to prevent overlapping
 let premiumProcessingUses = 0; // Track how many instant processing uses are available
+
+// Cat state tracking
+let catIsAwake = false; // Track if cat is currently awake
+let catWakeTimer = 0; // Timer for cat wake cycles
+let catSleepExtended = false; // Track if sleep was extended by feeding
+let catMoodTimer = 0; // Timer for mood penalty when cat is awake
+let catInBallMode = false; // Track if cat is in ball mode
+let catBallTimer = 0; // Timer for ball mode duration
+let playerImmobilized = false; // Track if player movement is disabled
+let purringPlaying = false; // Track if purring sound is currently playing
 
 // List of obviously bad TINs that should always be invalid
 const badTINs = ['000000000', '111111111', '999999999', '123456789'];
@@ -1030,6 +1059,28 @@ function updatePremiumProcessingDisplay() {
     }
 }
 
+// Function to update cat food price display
+function updateCatFoodPriceDisplay() {
+    if (catFoodPriceText) {
+        catFoodPriceText.setText(`$${getCatFoodPrice()}`);
+    }
+}
+
+// Function to update cat food tint based on money availability
+function updateCatFoodTint() {
+    if (catFood) {
+        const catFoodPrice = getCatFoodPrice();
+        
+        if (money >= catFoodPrice) {
+            // Remove tint (show original colors) when player has enough money
+            catFood.clearTint();
+        } else {
+            // Apply grey tint when player doesn't have enough money
+            catFood.setTint(0x888888);
+        }
+    }
+}
+
 // Function to update bribe rate display highlighting
 function updateBribeDisplay() {
     // Remove current-level class from all levels
@@ -1044,6 +1095,8 @@ function updateBribeDisplay() {
     
     // Update the in-game bribe rate text above the phone
     updatePremiumProcessingDisplay();
+    updateCatFoodPriceDisplay();
+    updateCatFoodTint(); // Update tint since price changed with level
 }
 
 // Function to update happiness and display
@@ -1409,10 +1462,13 @@ function preload() {
     this.load.image('window', 'assets/images/objects/window.png');
     this.load.image('tables', 'assets/images/objects/tables.png');
     this.load.image('plant', 'assets/images/objects/plant.png');
+    this.load.image('catFood', 'assets/images/objects/cat-food.png');
     
     // Load cat assets
     this.load.image('catLay1', 'assets/images/character/cat/cat-sleep-1.png');
     this.load.image('catLay2', 'assets/images/character/cat/cat-sleep-2.png');
+    this.load.image('catStand1', 'assets/images/character/cat/cat-standing-1.png');
+    this.load.image('catStand2', 'assets/images/character/cat/cat-standing-2.png');
     
     // Load results station image
     this.load.image('resultsStation', 'assets/images/objects/the-hole.png');
@@ -1464,6 +1520,9 @@ function preload() {
     for (let i = 0; i < musicTracks.length; i++) {
         this.load.audio(musicTracks[i].key, `assets/audio/music/${musicTracks[i].file}`);
     }
+    
+    // Load cat purring sound
+    this.load.audio('purring', 'assets/audio/effects/purring.mp3');
     
     // Load dialog UI
     this.load.image('dialog', 'assets/images/ui/dialog.png');
@@ -1645,6 +1704,30 @@ function create() {
             fallbackPlant.setDepth(PLANT_DEPTH);
         }
         
+        // Add cat food above the plant
+        try {
+            catFood = this.add.image(CAT_FOOD_X, CAT_FOOD_Y, 'catFood');
+            catFood.setScale(CAT_FOOD_SCALE);
+            catFood.setDepth(CAT_FOOD_DEPTH); // Above plant
+            catFood.setTint(0x888888); // Grey tint (default when no money)
+            updateCatFoodTint(); // Set initial tint based on starting money
+        } catch (error) {
+            console.warn('Cat food asset not found, using fallback');
+            catFood = this.add.rectangle(CAT_FOOD_X, CAT_FOOD_Y, 20, 10, 0xFFFFFF);
+            catFood.setDepth(CAT_FOOD_DEPTH);
+            catFood.setTint(0x888888); // Grey tint for fallback too
+            updateCatFoodTint(); // Set initial tint based on starting money
+        }
+        
+        // Add cat food price text above the cat food
+        catFoodPriceText = this.add.text(CAT_FOOD_PRICE_X, CAT_FOOD_PRICE_Y, `$${getCatFoodPrice()}`, {
+            fontSize: '14px',
+            fill: '#000000',
+            fontFamily: '"Jersey 15", sans-serif',
+            align: 'center'
+        }).setOrigin(0.5);
+        catFoodPriceText.setDepth(CAT_FOOD_DEPTH);
+        
         // Create horizontal belt for TIN boxes
         const beltStartX = BELT_START_X; // Start position from left
         const beltY = BELT_Y; // Y position for belt
@@ -1736,12 +1819,27 @@ function create() {
             delay: CAT_ANIMATION_DELAY,
             callback: () => {
                 if (this.cat) {
-                    this.catCurrentFrame = this.catCurrentFrame === 1 ? 2 : 1;
-                    this.cat.setTexture(`catLay${this.catCurrentFrame}`);
+                    if (catInBallMode) {
+                        // Use sleep animation when player is immobilized
+                        this.catCurrentFrame = this.catCurrentFrame === 1 ? 2 : 1;
+                        this.cat.setTexture(`catLay${this.catCurrentFrame}`);
+                        this.cat.setScale(CAT_SCALE);
+                    } else if (catIsAwake) {
+                        this.catCurrentFrame = this.catCurrentFrame === 1 ? 2 : 1;
+                        this.cat.setTexture(`catStand${this.catCurrentFrame}`);
+                        this.cat.setScale(CAT_AWAKE_SCALE);
+                    } else {
+                        this.catCurrentFrame = this.catCurrentFrame === 1 ? 2 : 1;
+                        this.cat.setTexture(`catLay${this.catCurrentFrame}`);
+                        this.cat.setScale(CAT_SCALE);
+                    }
                 }
             },
             loop: true
         });
+        
+        // Initialize cat wake timer
+        catWakeTimer = CAT_WAKE_INTERVAL;
     } catch (error) {
         console.warn('Cat assets not found, using fallback');
         const fallbackCat = this.add.rectangle(CAT_X, CAT_Y, 40, 30, 0x8B4513); // Brown color
@@ -1774,6 +1872,12 @@ function create() {
     this.bgMusic = this.musicObjects[0]; // Start with first track (Eulogy)
     // Music will be started in closeWelcomeDialog()
     
+    // Create purring sound (50% of main music volume)
+    this.purringSound = this.sound.add('purring', { 
+        volume: BACKGROUND_MUSIC_VOLUME * 7, 
+        loop: true 
+    });
+    
     // Set up page visibility API to pause/resume music when tab is active/inactive
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
@@ -1793,6 +1897,7 @@ function create() {
     keys.d = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
     keys.space = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     keys.c = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C);
+    keys.f = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
     keys.one = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE);
     keys.two = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO);
     keys.three = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE);
@@ -2161,6 +2266,7 @@ function submitBox() {
         
         money += payment;
         updatePhoneTint(); // Update phone tint based on new money amount
+        updateCatFoodTint(); // Update cat food tint based on new money amount
         
         // Check if player reached bribe cost for first time
         const currentLevel = getCurrentLevel();
@@ -2222,6 +2328,7 @@ function submitAllBoxes() {
             money += payment;
             totalEarned += payment;
             updatePhoneTint(); // Update phone tint based on new money amount
+            updateCatFoodTint(); // Update cat food tint based on new money amount
             
             // Check if player reached bribe cost for first time
             const currentLevel = getCurrentLevel();
@@ -2280,6 +2387,7 @@ function submitToTrashCan() {
             money += payment;
             totalEarned += payment;
             updatePhoneTint(); // Update phone tint based on new money amount
+            updateCatFoodTint(); // Update cat food tint based on new money amount
             
             updateHappiness(2); // Increase happiness for correct disposal
             console.log(`CORRECT! Trashed bad TIN #${box.id} (${box.tin}). Paid $${payment}. Mood +2.`);
@@ -2387,6 +2495,8 @@ function processAllBoxes() {
             processingTime = 100; // Instant processing (100ms for visual effect)
             premiumProcessingUses--; // Use one premium processing
             updatePremiumProcessingDisplay(); // Update the display
+            updateCatFoodPriceDisplay(); // Update cat food price display
+            updateCatFoodTint(); // Update cat food tint since price may have changed
             updatePhoneTint(); // Update phone tint when premium uses change
             console.log(`Premium processing used! ${premiumProcessingUses} uses remaining`);
         } else {
@@ -2424,13 +2534,49 @@ function bribeIRS() {
     // Pay the cost and enable 5 premium processing uses
     money -= baseCost;
     updatePhoneTint(); // Update phone tint based on new money amount
+    updateCatFoodTint(); // Update cat food tint based on new money amount
     premiumProcessingUses = 5;
     updatePremiumProcessingDisplay(); // Update the display
+    updateCatFoodPriceDisplay(); // Update cat food price display
+    updateCatFoodTint(); // Update cat food tint since price may have changed
     
     console.log(`Premium processing enabled! Next ${premiumProcessingUses} TINs will be processed instantly for $${baseCost}`);
     
     // Update money display
     document.getElementById('money-display-value').textContent = `${money}`;
+}
+
+// Function to buy cat food
+function buyCatFood() {
+    const catFoodPrice = getCatFoodPrice();
+    
+    if (money < catFoodPrice) {
+        console.log(`Not enough money for cat food! Need $${catFoodPrice}, have $${money}`);
+        return;
+    }
+    
+    // Pay the cost
+    money -= catFoodPrice;
+    
+    // Update displays
+    updatePhoneTint(); // Update phone tint based on new money amount
+    updateCatFoodTint(); // Update cat food tint based on new money amount
+    document.getElementById('money-display-value').textContent = `${money}`;
+    
+    console.log(`Bought cat food for $${catFoodPrice}! Remaining money: $${money}`);
+    
+    // Feed the cat - put it to sleep or extend sleep
+    if (catIsAwake) {
+        // Cat goes back to sleep when fed
+        catIsAwake = false;
+        catWakeTimer = CAT_WAKE_INTERVAL;
+        catMoodTimer = 0; // Stop mood penalty
+        console.log("Cat was fed and went back to sleep");
+    } else {
+        // Cat is already sleeping - extend sleep time
+        catWakeTimer = CAT_WAKE_INTERVAL;
+        console.log("Cat was fed and sleep was extended");
+    }
 }
 
 // Update function - main game loop
@@ -2689,11 +2835,84 @@ function update() {
     }
     proximityCheckTimer -= game.loop.delta; // Decrease timer each frame
     
+    // Handle cat wake timer
+    if (!gameIsPaused && gameStartTime) {
+        catWakeTimer -= game.loop.delta;
+        if (catWakeTimer <= 0 && !catIsAwake) {
+            // Cat wakes up and stays awake until fed
+            catIsAwake = true;
+            catMoodTimer = 1000; // Reset mood timer when cat wakes up
+            console.log("Cat woke up and is waiting for food");
+        }
+    }
+    
+    // Handle cat mood penalty when awake
+    if (!gameIsPaused && gameStartTime && catIsAwake && !catInBallMode) {
+        catMoodTimer -= game.loop.delta;
+        if (catMoodTimer <= 0) {
+            updateHappiness(-1); // Decrease mood by 1
+            catMoodTimer = 1000; // Reset timer for next second
+            console.log("Cat is hungry - mood decreased by 1");
+        }
+    }
+    
+    // Handle cat proximity detection and sleep conversion
+    if (!gameIsPaused && gameStartTime && this.cat) {
+        const catDistance = Phaser.Math.Distance.Between(player.x, player.y, this.cat.x, this.cat.y);
+        if (catDistance <= CAT_PROXIMITY_DISTANCE) {
+            // Player is close to cat - extend sleep timer regardless of cat state
+            if (!catInBallMode) {
+                // Player just started petting
+                catInBallMode = true; // Using this to track "being petted" state
+                if (catIsAwake) {
+                    catIsAwake = false; // Put awake cat to sleep
+                    console.log("Cat fell asleep from petting");
+                } else {
+                    console.log("Player started petting sleeping cat");
+                }
+                this.cat.x += 5; // Move cat 5px to the right when being petted
+            }
+            // Each second near cat adds 10 seconds to sleep timer
+            const timeAdded = (game.loop.delta / 1000) * 10000; // 1 sec proximity = 10 sec sleep
+            catWakeTimer += timeAdded;
+            
+            // Log current sleep timer every second
+            if (Math.floor(Date.now() / 1000) !== Math.floor((Date.now() - game.loop.delta) / 1000)) {
+                const sleepTimeLeft = Math.max(0, catWakeTimer / 1000);
+                console.log(`Cat sleep timer: ${sleepTimeLeft.toFixed(1)}s until next wake`);
+            }
+        } else if (catInBallMode) {
+            // Player moved away from cat
+            catInBallMode = false;
+            this.cat.x -= 5; // Move cat back to original position
+            console.log("Player stopped petting cat");
+        }
+    }
+    
+    // Handle cat purring sound based on proximity
+    if (!gameIsPaused && gameStartTime && this.cat && this.purringSound) {
+        const catDistance = Phaser.Math.Distance.Between(player.x, player.y, this.cat.x, this.cat.y);
+        const playerNearCat = catDistance <= CAT_PROXIMITY_DISTANCE;
+        
+        if (playerNearCat && !purringPlaying) {
+            this.purringSound.play();
+            purringPlaying = true;
+        } else if (!playerNearCat && purringPlaying) {
+            // Stop purring when player moves away from cat
+            this.purringSound.stop();
+            purringPlaying = false;
+        }
+    }
     
     
     // Handle C key for bribing IRS
     if (Phaser.Input.Keyboard.JustDown(keys.c)) {
         bribeIRS();
+    }
+    
+    // Handle F key for buying cat food
+    if (Phaser.Input.Keyboard.JustDown(keys.f)) {
+        buyCatFood();
     }
     
     // Handle R key for cycling music
