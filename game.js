@@ -32,7 +32,7 @@ const BRIBE_SPEED_MULTIPLIER = 0.2; // 80% faster = 20% of original time
 
 // Distance Thresholds
 const PICKUP_DISTANCE = 60;
-const INTERACTION_DISTANCE = 96;
+const INTERACTION_DISTANCE = 50;
 const PROXIMITY_CHECK_INTERVAL = 150; // Check proximity every 150ms
 const PROXIMITY_DISTANCE = 96; // Standard proximity distance for auto actions
 const PLAYER_BOUNDARY_MARGIN_X = 45;
@@ -48,9 +48,12 @@ const IRS_MACHINE_X = 800; // Adjusted for new width
 const IRS_MACHINE_Y = 400;
 const IRS_MACHINE_2_X = 800; // Second machine position (under first machine)
 const IRS_MACHINE_2_Y = 530;
-const RETURN_STATION_X = 420;
+const RETURN_STATION_X = 360;
 const RETURN_STATION_Y = 660;
-const PUT_HERE_TEXT_X = 420;
+const TRASH_CAN_X = 570; // To the right of the hole
+const TRASH_CAN_Y = 650;
+const TRASH_CAN_SCALE = 0.1; // Scale for trash can
+const PUT_HERE_TEXT_X = 370;
 const PUT_HERE_TEXT_Y = 610;
 const BOX_SPAWN_OFFSET = 40;
 const BOX_GAP_SIZE = 80;
@@ -212,11 +215,11 @@ let processingBoxes2 = []; // Processing boxes for second machine
 let processingStatus;
 let gameScene; // Reference to the current scene for adding objects
 let returnStation;
+let trashCan;
 let money = 0;
 let gameStartTime;
 let level = 0;
 let happiness = 95; // Start at Junior's initial mood
-let spaceCardIndex = 0; // Track which box to process next with SPACE
 let gameIsPaused = false; // Track pause state
 let pausedTime = 0; // Track how long game has been paused
 let currentBeltPosition = 0; // Track next stop position on belt (resets when reaching end)
@@ -439,7 +442,7 @@ function showResponsibilitiesDialog() {
     // Main responsibilities text
     const dialogText = `To verify TINs, you must submit them to the IRS for matching. Once results are received, promptly share them with leadership.
 
-Remember, our system operates in real time — speed is critical. API responses must stay under 30 seconds. If a TIN expires before it's processed, it vanishes forever… and an unhappy customer makes us very unhappy. When we're unhappy, your job may vanish too.
+Remember, our system operates in real time — speed is critical. If a TIN expires before it's processed, it vanishes forever… and an unhappy customer makes us very unhappy. When we're unhappy, your job may vanish too.
 
 But deliver excellent work, and who knows — a promotion might be waiting for you in the next review cycle.`;
     
@@ -507,9 +510,9 @@ function showOneMoreThingDialog() {
     oneMoreThingText.setDepth(DIALOG_DEPTH + 1);
     
     // Main dialog text
-    const dialogText = `Ah, before we forget! Of course, we don't need to explain this to a professional like you — but some TINs are obviously invalid (e.g., 000000000). You can mark those as bad right away (B) to avoid overloading the government service.
+    const dialogText = `Ah, before we forget! Of course, we don't need to explain this to a professional like you — but some TINs are obviously invalid (e.g., 000000000). You can throw them in a trash can right away to avoid overloading the government service.
 
-However, if you submit incorrect results… we'll be very, very upset. And when we're upset — well, you know what happens.`;
+However, if you recycle good TINs… we'll be very, very upset. And when we're upset — well, you know what happens.`;
     
     const mainText = scene.add.text(DIALOG_X, DIALOG_Y + DIALOG_TEXT_Y_OFFSET + 20, dialogText, {
         fontSize: DIALOG_TEXT_FONT_SIZE,
@@ -1414,6 +1417,9 @@ function preload() {
     // Load results station image
     this.load.image('resultsStation', 'assets/images/objects/the-hole.png');
     
+    // Load trash can image
+    this.load.image('trashCan', 'assets/images/objects/trash-can.png');
+    
     // Load put here text for results station
     this.load.image('putHereText', 'assets/images/objects/put-here-txt.png');
     
@@ -1708,6 +1714,11 @@ function create() {
     returnStation.setScale(RETURN_STATION_SCALE);
     returnStation.setDepth(STATION_DEPTH);
     
+    // Create Trash Can
+    trashCan = this.add.image(TRASH_CAN_X, TRASH_CAN_Y, 'trashCan');
+    trashCan.setScale(TRASH_CAN_SCALE);
+    trashCan.setDepth(STATION_DEPTH);
+    
     // Add "put here" text above the hole
     const putHereText = this.add.image(PUT_HERE_TEXT_X, PUT_HERE_TEXT_Y, 'putHereText');
     putHereText.setScale(PUT_HERE_TEXT_SCALE);
@@ -1782,7 +1793,6 @@ function create() {
     keys.d = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
     keys.space = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     keys.c = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C);
-    keys.b = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.B);
     keys.one = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE);
     keys.two = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO);
     keys.three = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE);
@@ -1993,7 +2003,6 @@ function pickupBox() {
         carriedBoxes.push(nearestBox);
         
         // Reset space card index when picking up boxes
-        spaceCardIndex = 0;
         
         console.log(`Picked up box #${nearestBox.id} (${carriedBoxes.length}/${maxCapacity})`);
     }
@@ -2003,7 +2012,7 @@ function pickupBox() {
 function processBox() {
     if (carriedBoxes.length === 0) return; // Need to carry a box
     
-    // Check if player is near IRS machine (within 96px)
+    // Check if player is near IRS machine
     const distance = Phaser.Math.Distance.Between(player.x, player.y, irsMachine.x, irsMachine.y);
     if (distance > INTERACTION_DISTANCE) return;
     
@@ -2242,6 +2251,57 @@ function submitAllBoxes() {
     console.log(`Submitted ${processedBoxes.length} boxes, earned $${totalEarned} total`);
 }
 
+// Function to submit boxes to trash can
+function submitToTrashCan() {
+    if (carriedBoxes.length === 0) return;
+    
+    // Check if player is near trash can
+    const distance = Phaser.Math.Distance.Between(player.x, player.y, trashCan.x, trashCan.y);
+    if (distance > INTERACTION_DISTANCE) return;
+    
+    const trashedCount = carriedBoxes.length;
+    let totalEarned = 0;
+    
+    // Process all carried boxes (processed and unprocessed)
+    for (let i = carriedBoxes.length - 1; i >= 0; i--) {
+        const box = carriedBoxes[i];
+        
+        // If this is a bad TIN (validity = 0), reward player like correct submission
+        if (box.validity === 0) {
+            // Variable payment based on level (same as return station)
+            let payment = 10; // Base payment
+            if (level === 0) payment = 100; // Junior gets $100
+            else if (level === 1) payment = 500; // Mid gets $500  
+            else if (level >= 2) payment = 1000; // Senior gets $1000
+            
+            // Apply election payment bonus effect
+            payment = Math.round(payment * activeElectionEffects.paymentBonus);
+            
+            money += payment;
+            totalEarned += payment;
+            updatePhoneTint(); // Update phone tint based on new money amount
+            
+            updateHappiness(2); // Increase happiness for correct disposal
+            console.log(`CORRECT! Trashed bad TIN #${box.id} (${box.tin}). Paid $${payment}. Mood +2.`);
+        } else {
+            // Good TIN (validity = 1) - penalize for wrong disposal
+            updateHappiness(-10);
+            console.log(`WRONG! Trashed good TIN #${box.id} (${box.tin}). No payment. Mood -10.`);
+        }
+        
+        // Remove the box
+        carriedBoxes.splice(i, 1);
+        box.sprite.destroy();
+        box.label.destroy();
+        if (box.statusIcon) box.statusIcon.destroy(); // Destroy status icon if exists
+    }
+    
+    // Update money display
+    document.getElementById('money-display-value').textContent = `${money}`;
+    
+    console.log(`Trashed ${trashedCount} boxes, earned $${totalEarned} total`);
+}
+
 // Function to process all unprocessed boxes
 function processAllBoxes() {
     const maxSlots = getCurrentLevel().irsSlots;
@@ -2343,60 +2403,6 @@ function processAllBoxes() {
     
 }
 
-// Function to use 0-card shortcut
-function use0Card() {
-    if (carriedBoxes.length === 0) return; // Need to be carrying a box
-    
-    // Reset index if it's out of bounds
-    if (spaceCardIndex >= carriedBoxes.length) {
-        spaceCardIndex = 0;
-    }
-    
-    // Find next changeable box starting from current index
-    let attempts = 0;
-    while (attempts < carriedBoxes.length) {
-        const targetBox = carriedBoxes[spaceCardIndex];
-        
-        // Check if this box can be changed
-        if (targetBox.result !== undefined) {
-            // Can only reset SPACE assignments, not pre-validated or IRS machine results
-            if (targetBox.assignedVia === 'space') {
-                // Reset the box to unprocessed state
-                targetBox.result = undefined;
-                targetBox.assignedVia = undefined;
-                targetBox.preValidated = false;
-                targetBox.sprite.clearTint(); // Back to original color
-                console.log(`Reset validation for box #${targetBox.id} (index ${spaceCardIndex})`);
-                
-                // Move to next box for next SPACE press
-                spaceCardIndex = (spaceCardIndex + 1) % carriedBoxes.length;
-                return;
-            } else if (targetBox.assignedVia === 'prevalidated') {
-                console.log(`Cannot change pre-validated result for box #${targetBox.id} (index ${spaceCardIndex})`);
-            } else {
-                console.log(`Cannot reset IRS machine result for box #${targetBox.id} (index ${spaceCardIndex})`);
-            }
-        } else {
-            // Assign 0-card result to this unprocessed box
-            targetBox.result = 0;
-            targetBox.assignedVia = 'space';
-            targetBox.statusIcon.setTexture('bad'); // Bad icon for 0-card
-            targetBox.statusIcon.setVisible(true); // Show the icon
-            targetBox.label.setStyle({ fill: '#000000' }); // Black text for validated TINs
-            console.log(`Used 0-card on box #${targetBox.id} (index ${spaceCardIndex})`);
-            
-            // Move to next box for next SPACE press
-            spaceCardIndex = (spaceCardIndex + 1) % carriedBoxes.length;
-            return;
-        }
-        
-        // Move to next box and try again
-        spaceCardIndex = (spaceCardIndex + 1) % carriedBoxes.length;
-        attempts++;
-    }
-    
-    console.log("No boxes available for 0-card assignment");
-}
 
 // Function to enable premium processing for next 5 TINs
 function bribeIRS() {
@@ -2643,11 +2649,16 @@ function update() {
         if (returnDistance <= PROXIMITY_DISTANCE && hasProcessedBox) {
             submitAllBoxes();
         }
-        // Priority 2: Drop unprocessed boxes at IRS machines  
-        else {
-            const hasUnprocessedBox = carriedBoxes.some(box => box.result === undefined);
-            
-            // Check which machine is closest and if it's available
+        // Priority 2: Submit any boxes to trash can
+        else if (carriedBoxes.length > 0) {
+            const trashDistance = Phaser.Math.Distance.Between(player.x, player.y, trashCan.x, trashCan.y);
+            if (trashDistance <= PROXIMITY_DISTANCE) {
+                submitToTrashCan();
+            } else {
+                // Priority 3: Drop unprocessed boxes at IRS machines
+                const hasUnprocessedBox = carriedBoxes.some(box => box.result === undefined);
+                if (hasUnprocessedBox) {
+                    // Check which machine is closest and if it's available
             const distance1 = Phaser.Math.Distance.Between(player.x, player.y, irsMachine.x, irsMachine.y);
             const distance2 = Phaser.Math.Distance.Between(player.x, player.y, irsMachine2.x, irsMachine2.y);
             const nearMachine1 = distance1 <= PROXIMITY_DISTANCE;
@@ -2659,16 +2670,18 @@ function update() {
             const machine1Available = nearMachine1 && !machine1HasActiveProcessing;
             const machine2Available = nearMachine2 && !machine2HasActiveProcessing;
             
-            // Process if any machine is available and we have unprocessed boxes
-            if ((machine1Available || machine2Available) && hasUnprocessedBox) {
-                processAllBoxes();
-            }
-            // Priority 3: Initial pickup from belt
-            else {
-                const maxCapacity = getCurrentLevel().carryCapacity;
-                if (carriedBoxes.length < maxCapacity) {
-                    pickupBox();
+                    // Process if any machine is available and we have unprocessed boxes
+                    if ((machine1Available || machine2Available) && hasUnprocessedBox) {
+                        processAllBoxes();
+                    }
                 }
+            }
+        }
+        // Priority 4: Initial pickup from belt
+        else {
+            const maxCapacity = getCurrentLevel().carryCapacity;
+            if (carriedBoxes.length < maxCapacity) {
+                pickupBox();
             }
         }
         
@@ -2677,11 +2690,6 @@ function update() {
     proximityCheckTimer -= game.loop.delta; // Decrease timer each frame
     
     
-    
-    // Handle B key for 0-card shortcut
-    if (Phaser.Input.Keyboard.JustDown(keys.b)) {
-        use0Card();
-    }
     
     // Handle C key for bribing IRS
     if (Phaser.Input.Keyboard.JustDown(keys.c)) {
