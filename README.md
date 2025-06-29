@@ -13,7 +13,7 @@ Special thanks to:
 
 ## Credits & Resources
 
-- _Empire of Vodka_Remastered.mp3_, _Quiet Meeting at the Bit.mp3_, _The Solution Remastered.mp3_ - [Travis](https://suno.com/@travis)
+- _Empire of Vodka Remastered.mp3_, _Quiet Meeting at the Bit.mp3_, _The Solution Remastered.mp3_ - [Travis](https://suno.com/@travis)
 - _purring.wav_ — [cubilon](https://freesound.org/people/cubilon/)
 - _email.wav_ - [original_sound](https://freesound.org/people/original_sound/)
 - _ding.wav_ — [JulesV4](https://freesound.org/people/JulesV4/)
