@@ -943,11 +943,11 @@ function actuallyShowPromotionDialog(levelName) {
     if (levelName === 'Mid') {
         dialogText = `It's that time of year again — and you've earned it! You've worked hard, tackled those tricky TINs, and kept everything running in real time. Impressive!
 
-Congratulations, you're now a Level II Engineer — and it shows. Look at you go, submitting two TINs at once like a pro!
+Congratulations, you're now a L2 Engineer — and it shows. Look at you go, submitting two TINs at once like a pro!
 
 But with greater speed comes greater responsibility. The stakes are higher now, and our patience is running thin. We've placed a lot of trust in you… so don't let us down.`;
     } else if (levelName === 'Senior') {
-        dialogText = `Congratulations — you've ascended to Level III Engineer!
+        dialogText = `Congratulations — you've ascended to L3 Engineer!
 
 At this point, you can almost feel which TINs are valid. It's uncanny. No more waiting, no more guessing — just pure, instinctual TIN magic. We're impressed… and a little frightened.
 
