@@ -835,7 +835,7 @@ function actuallyShowBreachOfTrustDialog() {
     breachOfTrustText.setDepth(DIALOG_DEPTH + 1);
     
     // Main dialog text
-    const dialogText = `How could you? After everything we've done for you — the real-time systems, the TINs, the premium processing… and Cat.
+    const dialogText = `We’ve received your notice of resignation. How could you? After everything we've done for you — the real-time system, the TINs, the promotion a few years ago... and the Cat.
 
 And now you walk away? Just like that?
 
@@ -844,7 +844,7 @@ Please don't leave.
 
 ...Oh well, I suppose a new junior will be starting next week.`;
     
-    const mainText = scene.add.text(DIALOG_X, DIALOG_Y + DIALOG_TEXT_Y_OFFSET + 40, dialogText, {
+    const mainText = scene.add.text(DIALOG_X, DIALOG_Y + DIALOG_TEXT_Y_OFFSET + 60, dialogText, {
         fontSize: DIALOG_TEXT_FONT_SIZE,
         fill: '#000000',
         fontFamily: '"Jersey 15", sans-serif',
