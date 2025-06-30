@@ -139,11 +139,6 @@ const DIALOG_TITLE_FONT_SIZE = '21px'; // 14px * 1.5 = 21px
 const DIALOG_TEXT_MAX_WIDTH = 300;
 const DIALOG_DEPTH = 3000;
 
-// Processing Time Ranges
-const MIN_SPAWN_DELAY = 2000; // 2 seconds
-const MAX_SPAWN_DELAY = 5000; // 5 seconds
-const MIN_PROCESSING_TIME = 2000; // 2 seconds  
-const MAX_PROCESSING_TIME = 5000; // 5 seconds
 
 // Wall Constants
 const TOP_WALL_HEIGHT = 120; // 1.5x longer (80 * 1.5 = 120)
@@ -174,7 +169,7 @@ const CAT_SCALE = 0.3; // Scale when sleeping
 const CAT_AWAKE_SCALE = 0.27; // Smaller scale when awake/standing
 const CAT_DEPTH = 7; // Above stations
 const CAT_ANIMATION_DELAY = 1000; // Switch between images every second
-const CAT_WAKE_INTERVAL = 10000; // Cat wakes up every 30 seconds
+const CAT_WAKE_INTERVAL = 80000; // Cat wakes up every 30 seconds
 const CAT_PROXIMITY_DISTANCE = 100; // Distance for cat interaction
 const CAT_BALL_DURATION = 10000; // Player immobilized for 10 seconds
 const BROKEN_HEART_SCALE = 0.03; // Scale for broken heart effect
@@ -186,10 +181,10 @@ const PLANT_SCALE = 0.133; // 1.5x smaller (0.2 / 1.5 = 0.133)
 const CAT_FOOD_SCALE = 0.07; // Small cat food bowl
 const CAT_FOOD_DEPTH = 6; // Above plant, below cat
 
-// Function to get cat food price (same as premium processing cost for now)
+// Function to get cat food price
 function getCatFoodPrice() {
     const currentLevel = getCurrentLevel();
-    return currentLevel.bribeCost;
+    return currentLevel.catFoodCost || 25;
 }
 
 const PLANT_DEPTH = 6; // Above stations
@@ -242,7 +237,7 @@ let trashCan;
 let money = 0;
 let gameStartTime;
 let level = 0;
-let happiness = 95; // Start at Junior's initial mood
+let happiness = 0; // Start at Junior's initial mood
 let gameIsPaused = false; // Track pause state
 let pausedTime = 0; // Track how long game has been paused
 let currentBeltPosition = 0; // Track next stop position on belt (resets when reaching end)
@@ -314,9 +309,9 @@ let activeElectionEffects = {
 
 // Level system (mood-based progression)
 const levels = [
-    { name: 'Junior', initMood: 50, speedBonus: 0, carryCapacity: 1, irsSlots: 1, preValidated: false, moodGainRate: 5.0, moodLossRate: 1.0, spawnSpeedMultiplier: 0.95, bribeCost: 500 },
-    { name: 'Mid', initMood: 35, speedBonus: 100, carryCapacity: 1, irsSlots: 2, preValidated: false, moodGainRate: 3.5, moodLossRate: 1.2, spawnSpeedMultiplier: 1.5, bribeCost: 1500 },
-    { name: 'Senior', initMood: 25, speedBonus: 100, carryCapacity: 1, irsSlots: 2, preValidated: true, moodGainRate: 2.5, moodLossRate: 1.4, spawnSpeedMultiplier: 1.71, bribeCost: 5500 }
+    { name: 'Junior', initMood: 0, speedBonus: 0, carryCapacity: 1, irsSlots: 1, preValidated: false, moodGain: 17, moodLossLate: -2, moodLossWrongTrash: -5, moodLossCatAwake: -0.5, bribeCost: 300, processingTime: 5000, spawnDelay: 6000, catFoodCost: 200, payment: 100, catWakeInterval: 80000 },
+    { name: 'Mid', initMood: 0, speedBonus: 100, carryCapacity: 1, irsSlots: 2, preValidated: false, moodGain: 10, moodLossLate: -5, moodLossWrongTrash: -10, moodLossCatAwake: -1, bribeCost: 1500, processingTime: 7000, spawnDelay: 3000, catFoodCost: 1000, payment: 500, catWakeInterval: 10000 },
+    { name: 'Senior', initMood: 0, speedBonus: 100, carryCapacity: 1, irsSlots: 2, preValidated: true, moodGain: 10, moodLossLate: -5, moodLossWrongTrash: -20, moodLossCatAwake: -1, bribeCost: 5500, processingTime: 7000, spawnDelay: 2000, catFoodCost: 2000, payment: 1000, catWakeInterval: 7000 }
 ];
 
 // Function to get current level info
@@ -355,7 +350,8 @@ function checkPromotion() {
         console.log(`PROMOTION! You are now ${newLevel.name}! Mood reset to ${happiness}.`);
         document.getElementById('level-display-value').textContent = `${newLevel.name}`;
         updateBribeDisplay(); // Update bribe rate display
-        updateHappiness(0); // Update display without changing value
+        updatePhoneTint(); // Update phone tint based on new level
+        updateHappiness('display'); // Update display without changing value
         
         // Show promotion dialog
         showPromotionDialog(newLevel.name);
@@ -828,7 +824,7 @@ function actuallyShowBreachOfTrustDialog() {
     subjectText.setDepth(DIALOG_DEPTH + 1);
     
     // "Breach of Trust" text (same row as Subject, 60px to the right of center)
-    const breachOfTrustText = scene.add.text(DIALOG_X + 80, DIALOG_Y + DIALOG_TITLE_Y_OFFSET - 100, 'Breach of Trust', {
+    const breachOfTrustText = scene.add.text(DIALOG_X + 80, DIALOG_Y + DIALOG_TITLE_Y_OFFSET - 100, 'You Had It All', {
         fontSize: DIALOG_TITLE_FONT_SIZE,
         fill: '#000000',
         fontFamily: '"Jersey 15", sans-serif',
@@ -838,7 +834,7 @@ function actuallyShowBreachOfTrustDialog() {
     breachOfTrustText.setDepth(DIALOG_DEPTH + 1);
     
     // Main dialog text
-    const dialogText = `How could you? After everything we've done for you — the real-time systems, the TINs, the premium processing… and Lois.
+    const dialogText = `How could you? After everything we've done for you — the real-time systems, the TINs, the premium processing… and Cat.
 
 And now you walk away? Just like that?
 
@@ -847,7 +843,7 @@ Please don't leave.
 
 ...Oh well, I suppose a new junior will be starting next week.`;
     
-    const mainText = scene.add.text(DIALOG_X, DIALOG_Y + DIALOG_TEXT_Y_OFFSET + 60, dialogText, {
+    const mainText = scene.add.text(DIALOG_X, DIALOG_Y + DIALOG_TEXT_Y_OFFSET + 40, dialogText, {
         fontSize: DIALOG_TEXT_FONT_SIZE,
         fill: '#000000',
         fontFamily: '"Jersey 15", sans-serif',
@@ -1244,15 +1240,28 @@ function updateBribeDisplay() {
 }
 
 // Function to update happiness and display
-function updateHappiness(change) {
-    // Apply level-based mood change rates
+function updateHappiness(changeType) {
+    // Apply level-based mood change values
     const currentLevel = getCurrentLevel();
-    let actualChange = change;
+    let actualChange = 0;
     
-    if (change > 0) {
-        actualChange = change * currentLevel.moodGainRate; // Positive changes get harder at higher levels
-    } else if (change < 0) {
-        actualChange = change * currentLevel.moodLossRate * activeElectionEffects.moodProtection; // Apply election mood protection to negative changes
+    // Map change types to level config values
+    switch(changeType) {
+        case 'correct':
+            actualChange = currentLevel.moodGain;
+            break;
+        case 'late':
+            actualChange = currentLevel.moodLossLate;
+            break;
+        case 'wrongTrash':
+            actualChange = currentLevel.moodLossWrongTrash;
+            break;
+        case 'catAwake':
+            actualChange = currentLevel.moodLossCatAwake;
+            break;
+        default:
+            actualChange = 0; // No change, just update display
+            break;
     }
     
     happiness = Math.max(-100, Math.min(100, happiness + actualChange));
@@ -1280,7 +1289,7 @@ function updateHappiness(change) {
     // Check for promotion
     checkPromotion();
     
-    console.log(`Happiness changed by ${actualChange.toFixed(1)} (from ${change}), now at ${happiness.toFixed(1)}`);
+    console.log(`Happiness changed by ${actualChange.toFixed(1)} (from ${changeType}), now at ${happiness.toFixed(1)}`);
 }
 
 // Function to start an election - COMMENTED OUT FOR NOW
@@ -1531,16 +1540,14 @@ function getDifficulty() {
 
 // Function to get current spawn delay
 function getSpawnDelay() {
-    const difficulty = getDifficulty();
-    const baseDelay = Math.max(MIN_SPAWN_DELAY, MAX_SPAWN_DELAY - (difficulty * 3000)); // 5s to 2s
-    const levelMultiplier = getCurrentLevel().spawnSpeedMultiplier;
-    return baseDelay / levelMultiplier; // Faster spawn at higher levels
+    const currentLevel = getCurrentLevel();
+    return currentLevel.spawnDelay || 15000; // Default to 15 seconds if not specified
 }
 
 // Function to get current processing time
 function getProcessingTime() {
-    const difficulty = getDifficulty();
-    const baseTime = Math.max(MIN_PROCESSING_TIME, MAX_PROCESSING_TIME - (difficulty * 3000)); // 5s to 2s
+    const currentLevel = getCurrentLevel();
+    const baseTime = currentLevel.processingTime || 5000;
     return baseTime * activeElectionEffects.processingSpeed; // Apply election effect
 }
 
@@ -1997,7 +2004,7 @@ function create() {
         });
         
         // Initialize cat wake timer
-        catWakeTimer = CAT_WAKE_INTERVAL;
+        catWakeTimer = getCurrentLevel().catWakeInterval;
     } catch (error) {
         console.warn('Cat assets not found, using fallback');
         const fallbackCat = this.add.rectangle(CAT_X, CAT_Y, 40, 30, 0x8B4513); // Brown color
@@ -2408,72 +2415,6 @@ function completeProcessing(boxToComplete) {
     
 }
 
-// Function to submit processed box for payment
-function submitBox() {
-    // Find first processed box
-    let processedBox = null;
-    let processedIndex = -1;
-    for (let i = 0; i < carriedBoxes.length; i++) {
-        if (carriedBoxes[i].result !== undefined) {
-            processedBox = carriedBoxes[i];
-            processedIndex = i;
-            break;
-        }
-    }
-    
-    if (!processedBox) return; // No processed boxes
-    
-    // Check if player is near return station (within 96px)
-    const distance = Phaser.Math.Distance.Between(player.x, player.y, returnStation.x, returnStation.y);
-    if (distance > INTERACTION_DISTANCE) return;
-    
-    // Get the correct result (predetermined validity)
-    const correctResult = processedBox.validity;
-    const playerResult = processedBox.result;
-    
-    // Check if player's result matches correct result
-    if (playerResult === correctResult) {
-        // Variable payment based on level (no happiness multiplier)
-        let payment = 10; // Base payment
-        if (level === 0) payment = 100; // Junior gets $100
-        else if (level === 1) payment = 500; // Mid gets $500  
-        else if (level >= 2) payment = 1000; // Senior gets $1000
-        
-        // Apply election payment bonus effect
-        payment = Math.round(payment * activeElectionEffects.paymentBonus);
-        
-        money += payment;
-        updatePhoneTint(); // Update phone tint based on new money amount
-        updateCatFoodTint(); // Update cat food tint based on new money amount
-        
-        // Check if player reached bribe cost for first time
-        const currentLevel = getCurrentLevel();
-        if (money >= currentLevel.bribeCost && !premiumProcessingDialogShown) {
-            premiumProcessingDialogShown = true;
-            console.log("Showing premium processing dialog - money:", money);
-            showPremiumProcessingDialog();
-        }
-        
-        updateHappiness(2); // Increase happiness for correct results
-        console.log(`CORRECT! Box #${processedBox.id} TIN: ${processedBox.tin} - Player: ${playerResult}, Correct: ${correctResult}. Paid $${payment}. Mood +2.`);
-    } else {
-        // Wrong - no payment and happiness penalty
-        updateHappiness(-10);
-        console.log(`WRONG! Box #${processedBox.id} TIN: ${processedBox.tin} - Player: ${playerResult}, Correct: ${correctResult}. No payment. Mood -10.`);
-    }
-    
-    // Update money display
-    document.getElementById('money-display-value').textContent = `${money}`;
-    
-    // Remove the submitted box from carried boxes
-    carriedBoxes.splice(processedIndex, 1);
-    processedBox.sprite.destroy();
-    processedBox.label.destroy();
-    processedBox.statusIcon.destroy(); // Also destroy the status icon
-    
-    console.log(`Total money: $${money}`);
-}
-
 // Function to submit all processed boxes for payment
 function submitAllBoxes() {
     const processedBoxes = carriedBoxes.filter(box => box.result !== undefined);
@@ -2495,10 +2436,8 @@ function submitAllBoxes() {
         
         if (playerResult === correctResult) {
             // Variable payment based on level (no happiness multiplier)
-            let payment = 10;
-            if (level === 0) payment = 100; // Junior gets $100
-            else if (level === 1) payment = 500; // Mid gets $500  
-            else if (level >= 2) payment = 1000; // Senior gets $1000
+            const currentLevelInfo = getCurrentLevel();
+            let payment = currentLevelInfo.payment || 10;
             
             // Apply election payment bonus effect
             payment = Math.round(payment * activeElectionEffects.paymentBonus);
@@ -2516,11 +2455,11 @@ function submitAllBoxes() {
                 showPremiumProcessingDialog();
             }
             
-            updateHappiness(2); // Increase happiness for correct results
-            console.log(`CORRECT! Box #${box.id} TIN: ${box.tin} - Paid $${payment}. Mood +2.`);
+            updateHappiness('correct'); // Increase happiness for correct results
+            console.log(`CORRECT! Box #${box.id} TIN: ${box.tin} - Paid $${payment}.`);
         } else {
-            updateHappiness(-10);
-            console.log(`WRONG! Box #${box.id} TIN: ${box.tin} - No payment. Mood -10.`);
+            updateHappiness('wrongTrash');
+            console.log(`WRONG! Box #${box.id} TIN: ${box.tin} - No payment.`);
         }
         
         // Remove the box
@@ -2544,6 +2483,7 @@ function submitToTrashCan() {
     const distance = Phaser.Math.Distance.Between(player.x, player.y, trashCan.x, trashCan.y);
     if (distance > INTERACTION_DISTANCE) return;
     
+
     const trashedCount = carriedBoxes.length;
     let totalEarned = 0;
     
@@ -2554,10 +2494,8 @@ function submitToTrashCan() {
         // If this is a bad TIN (validity = 0), reward player like correct submission
         if (box.validity === 0) {
             // Variable payment based on level (same as return station)
-            let payment = 10; // Base payment
-            if (level === 0) payment = 100; // Junior gets $100
-            else if (level === 1) payment = 500; // Mid gets $500  
-            else if (level >= 2) payment = 1000; // Senior gets $1000
+            const levelInfo = getCurrentLevel();
+            let payment = levelInfo.payment || 10;
             
             // Apply election payment bonus effect
             payment = Math.round(payment * activeElectionEffects.paymentBonus);
@@ -2567,11 +2505,17 @@ function submitToTrashCan() {
             updatePhoneTint(); // Update phone tint based on new money amount
             updateCatFoodTint(); // Update cat food tint based on new money amount
             
-            updateHappiness(2); // Increase happiness for correct disposal
+            if (money >= levelInfo.bribeCost && !premiumProcessingDialogShown) {
+              premiumProcessingDialogShown = true;
+              console.log("Showing premium processing dialog - money:", money);
+              showPremiumProcessingDialog();
+            }
+
+            updateHappiness('correct'); // Increase happiness for correct disposal
             console.log(`CORRECT! Trashed bad TIN #${box.id} (${box.tin}). Paid $${payment}. Mood +2.`);
         } else {
             // Good TIN (validity = 1) - penalize for wrong disposal
-            updateHappiness(-10);
+            updateHappiness('wrongTrash');
             console.log(`WRONG! Trashed good TIN #${box.id} (${box.tin}). No payment. Mood -10.`);
             
             // Create upset mood animation above trash can
@@ -2771,12 +2715,12 @@ function buyCatFood() {
     if (catIsAwake) {
         // Cat goes back to sleep when fed
         catIsAwake = false;
-        catWakeTimer = CAT_WAKE_INTERVAL;
+        catWakeTimer = getCurrentLevel().catWakeInterval;
         catMoodTimer = 0; // Stop mood penalty
         console.log("Cat was fed and went back to sleep");
     } else {
         // Cat is already sleeping - extend sleep time
-        catWakeTimer = CAT_WAKE_INTERVAL;
+        catWakeTimer = getCurrentLevel().catWakeInterval;
         console.log("Cat was fed and sleep was extended");
     }
 }
@@ -3126,7 +3070,7 @@ function update() {
     if (!gameIsPaused && gameStartTime && catIsAwake && !catInBallMode && !catIntroDialogActive) {
         catMoodTimer -= game.loop.delta;
         if (catMoodTimer <= 0) {
-            updateHappiness(-1); // Decrease mood by 1
+            updateHappiness('catAwake'); // Decrease mood by 1
             catMoodTimer = 1000; // Reset timer for next second
             console.log("Cat is hungry - mood decreased by 1");
             
@@ -3139,37 +3083,29 @@ function update() {
         }
     }
     
-    // Handle cat proximity detection and sleep conversion
+    // Handle cat proximity detection - player near cat makes it sleep immediately
     if (!gameIsPaused && gameStartTime && this.cat) {
         const catDistance = Phaser.Math.Distance.Between(player.x, player.y, this.cat.x, this.cat.y);
         if (catDistance <= CAT_PROXIMITY_DISTANCE) {
-            // Player is close to cat - extend sleep timer regardless of cat state
+            // Player is close to cat - put it to sleep immediately
             if (!catInBallMode) {
                 // Player just started petting
                 catInBallMode = true; // Using this to track "being petted" state
                 if (catIsAwake) {
-                    catIsAwake = false; // Put awake cat to sleep
+                    catIsAwake = false; // Put awake cat to sleep immediately
+                    catWakeTimer = getCurrentLevel().catWakeInterval; // Reset timer to full interval
+                    catMoodTimer = 0; // Stop mood penalty
                     console.log("Cat fell asleep from petting");
                 } else {
                     console.log("Player started petting sleeping cat");
                 }
                 this.cat.x += 5; // Move cat 5px to the right when being petted
             }
-            // Each second near cat adds 10 seconds to sleep timer
-            const timeAdded = (game.loop.delta / 1000) * 10000; // 1 sec proximity = 10 sec sleep
-            catWakeTimer += timeAdded;
-            
-            // Log current sleep timer every second
-            if (Math.floor(Date.now() / 1000) !== Math.floor((Date.now() - game.loop.delta) / 1000)) {
-                const sleepTimeLeft = Math.max(0, catWakeTimer / 1000);
-                console.log(`Cat sleep timer: ${sleepTimeLeft.toFixed(1)}s until next wake`);
-            }
         } else if (catInBallMode) {
             // Player moved away from cat
             catInBallMode = false;
             this.cat.x -= 5; // Move cat back to original position
-            const sleepTimeLeft = Math.max(0, catWakeTimer / 1000);
-            console.log(`Player stopped petting cat. Cat should sleep for ${sleepTimeLeft.toFixed(1)}s. Cat awake: ${catIsAwake}`);
+            console.log(`Player stopped petting cat. Cat awake: ${catIsAwake}`);
         }
     }
     
@@ -3286,7 +3222,7 @@ function update() {
             box.label.destroy();
             box.statusIcon.destroy(); // Also destroy the status icon
             boxes.splice(i, 1);
-            updateHappiness(-5);
+            updateHappiness('late');
             console.log(`Box #${box.id} expired after ${Math.floor(expirationTime/1000)}s. Mood -5.`);
             
             // Create upset mood animation at box position
