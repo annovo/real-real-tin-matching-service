@@ -18,3 +18,4 @@ Special thanks to:
 - _email.wav_ - [original_sound](https://freesound.org/people/original_sound/)
 - _ding.wav_ — [JulesV4](https://freesound.org/people/JulesV4/)
 - _gear.flac_ - [Vurca](https://freesound.org/people/Vurca/)
+- _whoosh.flac_ - [qubodup](https://freesound.org/people/qubodup/)

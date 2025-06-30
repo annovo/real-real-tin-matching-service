@@ -68,11 +68,25 @@
             font-size: 19px;
             color: #56422D;
             font-family: 'Jersey 15', monospace;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 4px;
         }
-        #timer-display {
-            font-size: 19px;
-            color: #56422D;
-            font-family: 'Jersey 15', monospace;
+        #happiness-progress {
+            width: 120px;
+            height: 20px;
+            border-radius: 10px;
+            border: 2px solid #56422D;
+            overflow: hidden;
+            position: relative;
+        }
+        #happiness-progress-fill {
+            height: 100%;
+            background-color: #EC9054;
+            border-radius: 8px;
+            transition: width 0.3s ease, background-color 0.3s ease;
+            width: 50%;
         }
         #game-wrapper {
             height: 720px
@@ -149,8 +163,12 @@
                 <img src="assets/images/ui/level-indicator.png" alt="Level Icon" style="width: 24px; vertical-align: middle;">
                 <div id="level-display-value">Junior</div>
             </div>
-            <div id="happiness-display"><img id="happiness-display-value" src="assets/images/ui/neutral-mood.png" alt="Neutral Mood" style="width: 24px; vertical-align: middle;"></div>
-            <div id="timer-display">00:00</div>
+            <div id="happiness-display">
+                <img id="happiness-display-value" src="assets/images/ui/neutral-mood.png" alt="Neutral Mood" style="width: 24px;">
+                <div id="happiness-progress">
+                    <div id="happiness-progress-fill"></div>
+                </div>
+            </div>
         </div>
     </div>
     <div id="game-wrapper">

@@ -28,6 +28,7 @@ const ELECTION_DELAY = 30000; // 30 seconds
 const BOX_SPAWN_CHECK_INTERVAL = 1000;
 const BOX_SLIDE_DURATION = 8000; // 8 seconds
 const BACKGROUND_MUSIC_VOLUME = 0.5;
+const WHOOSH_SOUND_VOLUME = 0.1;
 const BRIBE_SPEED_MULTIPLIER = 0.2; // 80% faster = 20% of original time
 
 // Distance Thresholds
@@ -1270,15 +1271,32 @@ function updateHappiness(changeType) {
     const display = document.getElementById('happiness-display-value');
     
     // Color coding based on happiness level
-    if (happiness >= 50) {
+    if (happiness >= 20) {
         display.src = "assets/images/ui/happy-mood.png"; 
         display.alt = "Happy Mood";
-    } else if (happiness >= 0) {
+    } else if (happiness >= -30) {
         display.src = "assets/images/ui/neutral-mood.png"; 
         display.alt = "Neutral Mood";
     } else {
         display.src = "assets/images/ui/upset-mood.png"; 
         display.alt = "Upset Mood";
+    }
+    
+    // Update happiness progress bar
+    const progressFill = document.getElementById('happiness-progress-fill');
+    if (progressFill) {
+        // Convert happiness (-100 to 100) to percentage (0 to 100)
+        const percentage = Math.max(0, Math.min(100, (happiness + 100) / 2));
+        progressFill.style.width = percentage + '%';
+        
+        // Set color based on happiness level
+        if (happiness >= 20) {
+            progressFill.style.backgroundColor = "#6E9055"; // Green
+        } else if (happiness >= -30) {
+            progressFill.style.backgroundColor = "#EC9054"; // Yellow
+        } else {
+            progressFill.style.backgroundColor = '#ff4444'; // Red
+        }
     }
     
     // Check for game over
@@ -1690,6 +1708,9 @@ function preload() {
     // Load email sound for dialog notifications
     this.load.audio('email', 'assets/audio/effects/email.wav');
     
+    // Load whoosh sound for submitting results/trash
+    this.load.audio('whoosh', 'assets/audio/effects/whoosh.flac');
+    
     // Load dialog UI
     this.load.image('dialog', 'assets/images/ui/dialog.png');
     this.load.image('button', 'assets/images/ui/button.png');
@@ -2039,7 +2060,7 @@ function create() {
     
     // Create purring sound (50% of main music volume)
     this.purringSound = this.sound.add('purring', { 
-        volume: BACKGROUND_MUSIC_VOLUME * 9, 
+        volume: BACKGROUND_MUSIC_VOLUME * 10, 
         loop: true 
     });
     
@@ -2053,7 +2074,7 @@ function create() {
     });
     
     this.emailSound = this.sound.add('email', {
-        volume: BACKGROUND_MUSIC_VOLUME * 4
+        volume: BACKGROUND_MUSIC_VOLUME
     });
     
     // Set up page visibility API to pause/resume music when tab is active/inactive
@@ -2424,6 +2445,12 @@ function submitAllBoxes() {
     const distance = Phaser.Math.Distance.Between(player.x, player.y, returnStation.x, returnStation.y);
     if (distance > INTERACTION_DISTANCE) return;
     
+    // Play whoosh sound for submitting results
+    const scene = game.scene.scenes[0];
+    if (scene && scene.sound) {
+        scene.sound.play('whoosh', { volume: WHOOSH_SOUND_VOLUME });
+    }
+    
     let totalEarned = 0;
     
     // Process each box
@@ -2483,6 +2510,11 @@ function submitToTrashCan() {
     const distance = Phaser.Math.Distance.Between(player.x, player.y, trashCan.x, trashCan.y);
     if (distance > INTERACTION_DISTANCE) return;
     
+    // Play whoosh sound for throwing in trash
+    const scene = game.scene.scenes[0];
+    if (scene && scene.sound) {
+        scene.sound.play('whoosh', { volume: WHOOSH_SOUND_VOLUME });
+    }
 
     const trashedCount = carriedBoxes.length;
     let totalEarned = 0;
@@ -3190,7 +3222,7 @@ function update() {
     
     // Update game timer (show elapsed time excluding paused time)
     const elapsedSeconds = Math.floor((Date.now() - gameStartTime - pausedTime) / 1000);
-    document.getElementById('timer-display').textContent = formatTime(elapsedSeconds);
+    // document.getElementById('timer-display').textContent = formatTime(elapsedSeconds);
     
     // Check for election time
     // Election timing check - COMMENTED OUT
