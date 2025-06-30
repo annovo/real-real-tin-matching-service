@@ -9,7 +9,7 @@ Special thanks to:
 - ChatGPT, for generating the images
 - [freesound.org](https://freesound.org/) for awesome sound effects
 
-![Demo-gif](https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExczJ0YjgwNjE4OW1jeTBqcDM4bm0xMGxveTc5NXc3YWxlZ2FxdGJ6MiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/X6GwqZPRbdbCLv7oxJ/giphy.gif)
+![Demo-gif](https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExazFyb3I5bmkzeTM0YTV0bDNyZ3BhYjltN3hxc2M4amRqMmRkbWMwaCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/ouEOrbg47XxRUpUmrJ/giphy.gif)
 
 ## Credits & Resources
 
