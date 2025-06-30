@@ -3221,8 +3221,7 @@ function update() {
     }
     
     // Update game timer (show elapsed time excluding paused time)
-    const elapsedSeconds = Math.floor((Date.now() - gameStartTime - pausedTime) / 1000);
-    // document.getElementById('timer-display').textContent = formatTime(elapsedSeconds);
+    // const elapsedSeconds = Math.floor((Date.now() - gameStartTime - pausedTime) / 1000);
     
     // Check for election time
     // Election timing check - COMMENTED OUT
